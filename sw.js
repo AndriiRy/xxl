@@ -1,5 +1,5 @@
 // Офлайн-кэш: после первой загрузки приложение работает без интернета.
-const V='xxl-v10082112';
+const V='xxl-v10082117';
 const FILES=['./','./xxl.html','./manifest.webmanifest','./icon-180.png','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',e=>{e.waitUntil(caches.open(V).then(c=>c.addAll(FILES)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))));self.clients.claim()});
