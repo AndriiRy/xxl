@@ -95,7 +95,7 @@ h4{margin:10px 0 4px}
    <div id="hud"></div>
   </div>
   <div id="side">
-   <div id="cmd"><input id="cmdIn" placeholder="✍ np. zawiasy 100 i 600 · szczyt 600 · półki 300" enterkeyhint="go" autocapitalize="off" autocomplete="off"><button id="cmdGo">▶</button><button id="cmdHelp">?</button></div>
+   <div id="cmd"><input id="cmdIn" placeholder="✍ np. pod wiązanie 600 · zawiasy 100 i 600 · półki 300" enterkeyhint="go" autocapitalize="off" autocomplete="off"><button id="cmdGo">▶</button><button id="cmdHelp">?</button></div>
    <div id="cmdOut"></div>
    <div id="tabs">
     <button data-t="code" class="on">Код</button>
@@ -566,7 +566,7 @@ function runCmd(raw){
  const row=(x,y,z,d,k,sx,c)=>L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=${k}# x=${f1(sx)} D=${f1(d)} N="P" F=1`+com(c));
  const xs=()=>{const a=nums.length?nums:(tx!=null?[tx]:[]);return a};
  const visible=has(/widocz|tylko kol|bez konf|видим|только шкант|без конф/);
- const edge=has(/krawed|czol|czolo|torec|торец|кромк|w czo|f2|f3/)||(has(/szczyt|wieniec|bok|przegrod|wienc|щит|связ|стенк|бок|царг|wiazan/)&&!xs().length&&!has(/stal|стац|неподв/));
+ const edge=has(/krawed|czol|czolo|torec|торец|кромк|w czo|f2|f3/)||(has(/szczyt|wieniec|bok|przegrod|wienc|щит|связ|стенк|бок|царг|wi[ae]zan/)&&!xs().length&&!has(/stal|стац|неподв/));
  const left=has(/\blew|\bлев/),right=has(/\bpraw|\bправ/);
  const zDZ=v=>v==null?null:v;
  try{
@@ -584,14 +584,14 @@ function runCmd(raw){
   const P=xs();if(!P.length)return {err:'Podaj wysokość półki, np. «półki 300 i 650»'};
   const k=cnt||3,sx=step||32;for(const x of P){const X=val(x);const x0=X-sx*(k-1)/2;for(const y of [37,dy-37])row(x0,y,10,5,k,sx,'półka ruchoma, '+k+' otw. co '+sx)}
   what.push('półki ruchome ×'+P.length)}
- else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|wiazan|krawed|czol|торец|кромк/)){
+ else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|wi[ae]zan|krawed|czol|торец|кромк/)){
   const jp=jointPos(dy);const faces=left&&!right?[3]:right&&!left?[2]:[3,2];
   for(const F of faces){const nm=F==3?'lewa':'prawa';
    for(const y of jp.kol)hole('DZ/2',y,28,8,'P',F,'kołek czoło '+nm);
    if(!visible)for(const y of jp.konf)hole('DZ/2',y,41,4.8,'P',F,'konfirmat czoło '+nm);
    if(visible&&!jp.kol.length)for(const y of jp.konf)hole('DZ/2',y,28,8,'P',F,'kołek czoło '+nm)}
   what.push('złącze w czole '+faces.map(f=>'F'+f).join('+'))}
- else if(has(/szczyt|wieniec|bok|przegrod|wienc|stal|щит|связ|стенк|бок|царг|стац|неподв|wiazan/)){
+ else if(has(/szczyt|wieniec|bok|przegrod|wienc|stal|щит|связ|стенк|бок|царг|стац|неподв|wi[ae]zan/)){
   const P=xs();if(!P.length)return {err:'Podaj położenie (oś) elementu, np. «szczyt 600»'};
   const jp=jointPos(dy);
   for(const x of P){for(const y of jp.kol)hole(x,y,12,8,'P',1,'kołek, oś '+f1(val(x)));
@@ -625,9 +625,10 @@ function runCmd(raw){
 }
 const CMD_HELP=`<div class="res"><b>Przykłady / примеры</b><pre>zawiasy 100 i 600        → płytki w boku (Y=37, ±16)
 zawias front 100 1500    → puszki Ø35 + INSERTA Ø8
-szczyt 600               → kołki + konfirmaty na osi X=600
+wiązanie 600 / szczyt 600 → kołki + konfirmaty na osi X=600 (pod wiązanie)
+pod wiązanie 600 / под щит 600
 półka stała 750 widoczny → tylko kołki (bok widoczny)
-wieniec w czole          → kołki Ø8×28 + konfirmat Ø4,8×41 F3+F2
+wiązanie / wieniec w czole → kołki Ø8×28 + konfirmat Ø4,8×41 F3+F2
 szczyt krawędź lewa      → tylko F3 (X=0)
 półki 300 i 650          → 3 otw. Ø5 co 32, Y=37 i DY-37
 półki 400 5 otw co 32
