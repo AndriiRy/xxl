@@ -95,7 +95,7 @@ h4{margin:10px 0 4px}
    <div id="hud"></div>
   </div>
   <div id="side">
-   <div id="cmd"><input id="cmdIn" placeholder="✍ np. pod wiązanie 600 · zawiasy 100 i 600 · półki 300" enterkeyhint="go" autocapitalize="off" autocomplete="off"><button id="cmdGo">▶</button><button id="cmdHelp">?</button></div>
+   <div id="cmd"><input id="cmdIn" placeholder="✍ np. W 600 · p32 300 · zawiasy 100 1500" enterkeyhint="go" autocapitalize="off" autocomplete="off"><button id="cmdGo">▶</button><button id="cmdHelp">?</button></div>
    <div id="cmdOut"></div>
    <div id="tabs">
     <button data-t="code" class="on">Код</button>
@@ -459,10 +459,11 @@ function help(){return `<h4>Как пользоваться</h4><div class="smal
 function renderSet(){
  const pane=$('pane');
  pane.innerHTML=`<h4>Язык / Język</h4><div class="btns"><button id="sRu">Русский</button><button id="sPl">Polski</button></div><h4>Грани</h4><label><input type="checkbox" id="sF2" ${SET.f2right?'checked':''}> F2 — правый торец (X=DX), F3 — левый, F4 — перед (Y=0), F5 — зад (Y=DY) — как в мануале Xilog Editor, стр. 81</label>
- <h4>Поле станка</h4><div class="kv"><b>X</b><input id="sFx" value="${SET.field.x}"><span>мм</span><b>Y</b><input id="sFy" value="${SET.field.y}"><span>мм</span></div>
+ <h4>Высота «от нижней базы вверх» в командах ✍</h4><div class="btns"><button id="sAy" class="${SET.hAxis!=='x'?'on':''}">вдоль Y ↑</button><button id="sAx" class="${SET.hAxis==='x'?'on':''}">вдоль X →</button></div><h4>Поле станка</h4><div class="kv"><b>X</b><input id="sFx" value="${SET.field.x}"><span>мм</span><b>Y</b><input id="sFy" value="${SET.field.y}"><span>мм</span></div>
  <h4>Инструменты (T = ⌀ мм)</h4><div class="small">DEF.TLG ${TOOLS_VER} (Google Drive)</div><textarea id="sT" style="width:100%;height:200px;font-family:monospace">${Object.entries(SET.tools).map(([k,v])=>k+'='+v+(TOOL_NAMES[k]?'   ; '+TOOL_NAMES[k]:'')).join('\n')}</textarea>
  <div class="btns"><button id="sOk">Сохранить настройки</button><button id="sRst">Сбросить</button></div>`;
  $('sOk').onclick=()=>{SET.f2right=$('sF2').checked;SET.field={x:+$('sFx').value||3050,y:+$('sFy').value||1248};const t={};$('sT').value.split(/\n/).forEach(l=>{const m=/^\s*(\d+)\s*[=:]\s*([\d.,]+)/.exec(l);if(m)t[m[1]]=parseFloat(m[2].replace(',','.'))});SET.tools=t;SET.toolsVer=TOOLS_VER;saveSet();refresh();toast('Сохранено')};
+ $('sAy').onclick=()=>{SET.hAxis='y';saveSet();renderSet()};$('sAx').onclick=()=>{SET.hAxis='x';saveSet();renderSet()};
  $('sRu').onclick=()=>{if(SET.lang!='ru')$('bLang').click()};$('sPl').onclick=()=>{if(SET.lang!='pl')$('bLang').click()};
  $('sRst').onclick=()=>{localStorage.removeItem('xxl_set');SET={tools:TOOLS_DEFAULT,toolsVer:TOOLS_VER,f2right:true,flipY:false,field:FIELD_DEFAULT,lang:SET.lang};refresh();renderSet()};
 }
@@ -550,11 +551,12 @@ function pxv(v,D,name){if(typeof v=='string')return v;if(D&&Math.abs(v-D/2)<0.01
 function runCmd(raw){
  if(!model||!model.dx)return {err:'Сначала откройте программу (нужна строка H с DX DY DZ)'};
  const dx=model.dx,dy=model.dy,dz=model.dz;let t=' '+normCmd(raw)+' ';
+ // skróty: W = wiązanie, p32 / p64 = półki (3 otw. co 32 / 64)
+ t=t.replace(/^\s*w(?=\s|\d|$)/,' wiazanie ').replace(/^\s*p\s*(32|64)(?=\s|$)/,' polki co $1 ');
  const has=re=>re.test(t);const take=re=>{const m=re.exec(t);if(!m)return null;t=t.replace(m[0],' ');return m};
  const num=v=>parseFloat(v);
- // теги
  let m;const size=take(/(\d+\.?\d*)\s*[x×х\*]\s*(\d+\.?\d*)/);
- const D=(m=take(/(?:fi|ø|⌀|średnic\w*|srednic\w*|диам\w*|ф)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
+ const D=(m=take(/(?:fi|ø|⌀|srednic\w*|диам\w*|ф)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
  const Z=(m=take(/(?:gl\w*|глуб\w*|гл\.?)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
  const step=(m=take(/(?:co|rozstaw|шаг|через)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
  const cnt=(m=take(/(\d+)\s*(?:otw\w*|szt\w*|шт\w*|отв\w*)/))?parseInt(m[1]):null;
@@ -562,45 +564,53 @@ function runCmd(raw){
  const nums=[];t.replace(/(?:d[xy]\s*[-+\/]\s*\d+\.?\d*|-?\d+\.?\d*)/g,v=>{nums.push(/d/.test(v)?v.toUpperCase().replace(/\s/g,''):num(v));return v});
  const val=v=>typeof v=='string'?evalExpr(v,model.vars):v;
  const L=[],what=[];const com=c=>' ;'+c;
- const hole=(x,y,z,d,n,f,c)=>L.push(`XBO X=${f>1?x:pxv(x,dx,'DX')} Y=${f>1?pxv(y,dy,'DY'):pxv(y,dy,'DY')} Z=${z} R=1 D=${f1(d)} N="${n}" F=${f}`+com(c));
- const row=(x,y,z,d,k,sx,c)=>L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=${k}# x=${f1(sx)} D=${f1(d)} N="P" F=1`+com(c));
- const xs=()=>{const a=nums.length?nums:(tx!=null?[tx]:[]);return a};
+ // wysokość = od dolnej bazy w górę: domyślnie wzdłuż Y (⚙ — można przełączyć na X)
+ const AY=SET.hAxis!=='x';const Hd=AY?dy:dx,Hn=AY?'DY':'DX',Ad=AY?dx:dy,An=AY?'DX':'DY',sl=AY?'y':'x';
+ const add=(a,k)=>typeof a=='string'?a+(k<0?'-':'+')+f1(Math.abs(k)):a+k;
+ const XY=(a,b)=>AY?`X=${pxv(b,Ad,An)} Y=${pxv(a,Hd,Hn)}`:`X=${pxv(a,Hd,Hn)} Y=${pxv(b,Ad,An)}`;
+ const hA=(a,b,z,d,n,c)=>L.push(`XBO ${XY(a,b)} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
+ const rA=(a,b,z,d,k,st,c)=>L.push(`XBO ${XY(a,b)} Z=${z} R=${k}# ${sl}=${f1(st)} D=${f1(d)} N="P" F=1`+com(c));
+ const hE=(y,z,d,f,c)=>L.push(`XBO X=DZ/2 Y=${pxv(y,dy,'DY')} Z=${z} R=1 D=${f1(d)} N="P" F=${f}`+com(c));
+ const hXY=(x,y,z,d,n,c)=>L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
+ const xs=()=>nums.length?nums:(tx!=null?[tx]:ty!=null?[ty]:[]);
  const visible=has(/widocz|tylko kol|bez konf|видим|только шкант|без конф/);
- const edge=has(/krawed|czol|czolo|torec|торец|кромк|w czo|f2|f3/)||(has(/szczyt|wieniec|bok|przegrod|wienc|щит|связ|стенк|бок|царг|wi[ae]zan/)&&!xs().length&&!has(/stal|стац|неподв/));
+ const JOINT=/szczyt|wieniec|bok|przegrod|wienc|wi[ae]zan|щит|связ|стенк|бок|царг/;
+ const edge=has(/krawed|czol|torec|торец|кромк|f2|f3/)||(has(JOINT)&&!xs().length&&!has(/stal|стац|неподв/));
  const left=has(/\blew|\bлев/),right=has(/\bpraw|\bправ/);
- const zDZ=v=>v==null?null:v;
+ const oś=a=>'oś '+f1(val(a))+' od dołu';
  try{
  if(has(/zawias|петл|puszk|чашк/)){
   const P=xs();if(!P.length)return {err:'Podaj położenie zawiasów, np. «zawiasy 100 i 600»'};
-  if(has(/front|drzw|puszk|фасад|двер|чашк/)){for(const x of P){const X=val(x);hole(pxv(x,dx,'DX'),22.5,13,35,'P',1,'puszka zawiasu Ø35');
-    if(!has(/bez srub|без винт/)){hole(typeof x=='string'?x+'-22.5':X-22.5,32,11.5,8,'P',1,'INSERTA Ø8');hole(typeof x=='string'?x+'+22.5':X+22.5,32,11.5,8,'P',1,'INSERTA Ø8')}}
+  if(has(/front|drzw|puszk|фасад|двер|чашк/)){for(const a of P){hA(a,22.5,13,35,'P','puszka zawiasu Ø35, '+oś(a));
+    if(!has(/bez srub|без винт/)){hA(add(a,-22.5),32,11.5,8,'P','INSERTA Ø8');hA(add(a,22.5),32,11.5,8,'P','INSERTA Ø8')}}
    what.push('puszki zawiasów ×'+P.length)}
-  else{for(const x of P){const X=val(x);L.push(`XBO X=${typeof x=='string'?x+'-16':pxv(X-16,dx,'DX')} Y=37 Z=12 R=2# x=32 D=5 N="P" F=1`+com('płytka zawiasu, oś '+f1(X)))}what.push('płytki zawiasów ×'+P.length)}
+  else{for(const a of P)rA(add(a,-16),37,12,5,2,32,'płytka zawiasu, '+oś(a));what.push('płytki zawiasów ×'+P.length)}
  }
  else if(has(/prowadnic|szuflad|направл|ящик|tandem|axis/)){
   const P=xs();if(!P.length)return {err:'Podaj wysokość prowadnicy, np. «prowadnica 200»'};
-  for(const x of P){for(const y of [37,261])hole(x,y,12,5,'P',1,'prowadnica (37 + 261)')}what.push('prowadnice ×'+P.length)}
+  for(const a of P)for(const b of [37,261])hA(a,b,12,5,'P','prowadnica (37 + 261), '+oś(a));what.push('prowadnice ×'+P.length)}
  else if(has(/polk|полк/)&&!has(/stal|стац|неподв/)){
-  const P=xs();if(!P.length)return {err:'Podaj wysokość półki, np. «półki 300 i 650»'};
-  const k=cnt||3,sx=step||32;for(const x of P){const X=val(x);const x0=X-sx*(k-1)/2;for(const y of [37,dy-37])row(x0,y,10,5,k,sx,'półka ruchoma, '+k+' otw. co '+sx)}
-  what.push('półki ruchome ×'+P.length)}
- else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|wi[ae]zan|krawed|czol|торец|кромк/)){
+  const P=xs();if(!P.length)return {err:'Podaj wysokość półki, np. «p32 300» lub «półki 300 i 650»'};
+  const k=cnt||3,st=step||32;for(const a of P){const a0=add(a,-st*(k-1)/2);for(const b of [37,Ad-37])rA(a0,b,10,5,k,st,'półka ruchoma, '+k+' otw. co '+st+', '+oś(a))}
+  what.push('półki '+k+' otw. co '+st+' ×'+P.length)}
+ else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|wi[ae]zan|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|krawed|czol|торец|кромк/)){
   const jp=jointPos(dy);const faces=left&&!right?[3]:right&&!left?[2]:[3,2];
   for(const F of faces){const nm=F==3?'lewa':'prawa';
-   for(const y of jp.kol)hole('DZ/2',y,28,8,'P',F,'kołek czoło '+nm);
-   if(!visible)for(const y of jp.konf)hole('DZ/2',y,41,4.8,'P',F,'konfirmat czoło '+nm);
-   if(visible&&!jp.kol.length)for(const y of jp.konf)hole('DZ/2',y,28,8,'P',F,'kołek czoło '+nm)}
-  what.push('złącze w czole '+faces.map(f=>'F'+f).join('+'))}
- else if(has(/szczyt|wieniec|bok|przegrod|wienc|stal|щит|связ|стенк|бок|царг|стац|неподв|wi[ae]zan/)){
-  const P=xs();if(!P.length)return {err:'Podaj położenie (oś) elementu, np. «szczyt 600»'};
-  const jp=jointPos(dy);
-  for(const x of P){for(const y of jp.kol)hole(x,y,12,8,'P',1,'kołek, oś '+f1(val(x)));
-   if(visible){if(!jp.kol.length)for(const y of jp.konf)hole(x,y,12,8,'P',1,'kołek, oś '+f1(val(x)))}
-   else for(const y of jp.konf)hole(x,y,'DZ+8',7,'L',1,'konfirmat na wylot, oś '+f1(val(x)))}
-  what.push((visible?'kołki':'kołki + konfirmaty')+' ×'+P.length)}
+   for(const y of jp.kol)hE(y,28,8,F,'kołek czoło '+nm);
+   if(!visible)for(const y of jp.konf)hE(y,41,4.8,F,'konfirmat czoło '+nm);
+   if(visible&&!jp.kol.length)for(const y of jp.konf)hE(y,28,8,F,'kołek czoło '+nm)}
+  what.push('wiązanie w czole '+faces.map(f=>'F'+f).join('+'))}
+ else if(has(JOINT)||has(/stal|стац|неподв/)){
+  const P=xs();if(!P.length)return {err:'Podaj wysokość od dołu, np. «W 600»'};
+  const jp=jointPos(Ad);
+  for(const a of P){for(const b of jp.kol)hA(a,b,12,8,'P','kołek, '+oś(a));
+   if(visible){if(!jp.kol.length)for(const b of jp.konf)hA(a,b,12,8,'P','kołek, '+oś(a))}
+   else for(const b of jp.konf)hA(a,b,'DZ+8',7,'L','konfirmat na wylot, '+oś(a))}
+  what.push('pod wiązanie '+(visible?'(kołki) ':'')+'×'+P.length)}
  else if(has(/rowek|rowk|wpust|hdf|паз|канав/)){
-  const y=nums.length?nums[0]:(ty!=null?ty:dy-16);const g=size?num(size[2]):(Z||10);
-  L.push('XGIN Q=0 R=1 G=1',`XG0 X=0 Y=${pxv(y,dy,'DY')} Z=${f1(g)} T=82 C=1 E=1 F=1`+com('rowek HDF '+(size?size[1]+'x'+size[2]:'4x'+f1(g))),'XL2P X=DX','XGOUT Q=0 G=1');what.push('rowek HDF Y='+f1(val(y)))}
+  const b=nums.length?nums[0]:Ad-16;const g=size?num(size[2]):(Z||10);
+  const st=AY?`X=${pxv(b,Ad,An)} Y=0`:`X=0 Y=${pxv(b,Ad,An)}`;
+  L.push('XGIN Q=0 R=1 G=1',`XG0 ${st} Z=${f1(g)} T=82 C=1 E=1 F=1`+com('rowek HDF '+(size?size[1]+'x'+size[2]:'4x'+f1(g))),AY?'XL2P Y=DY':'XL2P X=DX','XGOUT Q=0 G=1');what.push('rowek HDF '+f1(val(b))+' od przodu')}
  else if(has(/wyciec|wycin|prostok|kiesz|вырез|прямоуг|карман/)){
   if(!size||nums.length<2)return {err:'Np. «wycięcie 200x100 na 300 150 gł 10» (szer×wys, lewy dolny róg X Y)'};
   const w=num(size[1]),h=num(size[2]),x=val(nums[0]),y=val(nums[1]),z=Z!=null?Z:dz+1;
@@ -616,44 +626,43 @@ function runCmd(raw){
   const d=D||(kon?7:8),z=thr?'DZ+'+(kon?8:2):(Z||12);
   const pts=[];if(tx!=null||ty!=null)pts.push([tx!=null?tx:nums.shift(),ty!=null?ty:nums.shift()]);for(let i=0;i+1<nums.length;i+=2)pts.push([nums[i],nums[i+1]]);
   if(!pts.length||pts.some(p=>p[0]==null||p[1]==null))return {err:'Podaj X i Y, np. «otwór fi 8 gł 12 100 200» lub «konfirmat 100 200»'};
-  for(const [x,y] of pts){if(cnt&&cnt>1)L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=${cnt}# x=${step||32} D=${f1(d)} N="${thr?'L':'P'}" F=1`+com((kon?'konfirmat':kol?'kołek':'otwór')+' Ø'+f1(d)+' ×'+cnt));
-   else hole(x,y,z,d,thr?'L':'P',1,(kon?'konfirmat':kol?'kołek':'otwór')+' Ø'+f1(d))}
-  what.push((kon?'konfirmat':kol?'kołek':'otwór Ø'+f1(d))+' ×'+pts.length)}
+  const nm=(kon?'konfirmat':kol?'kołek':'otwór')+' Ø'+f1(d);
+  for(const [x,y] of pts){if(cnt&&cnt>1)L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=${cnt}# x=${step||32} D=${f1(d)} N="${thr?'L':'P'}" F=1`+com(nm+' ×'+cnt));
+   else hXY(x,y,z,d,thr?'L':'P',nm)}
+  what.push(nm+' ×'+pts.length)}
  else return {err:'Nie rozumiem polecenia. Naciśnij «?» — lista przykładów.'};
  }catch(e){return {err:e.message}}
  return {lines:L,what:what.join(', ')};
 }
-const CMD_HELP=`<div class="res"><b>Przykłady / примеры</b><pre>zawiasy 100 i 600        → płytki w boku (Y=37, ±16)
-zawias front 100 1500    → puszki Ø35 + INSERTA Ø8
-wiązanie 600 / szczyt 600 → kołki + konfirmaty na osi X=600 (pod wiązanie)
-pod wiązanie 600 / под щит 600
-półka stała 750 widoczny → tylko kołki (bok widoczny)
-wiązanie / wieniec w czole → kołki Ø8×28 + konfirmat Ø4,8×41 F3+F2
-szczyt krawędź lewa      → tylko F3 (X=0)
-półki 300 i 650          → 3 otw. Ø5 co 32, Y=37 i DY-37
-półki 400 5 otw co 32
-prowadnica 200 i 450     → Ø5 Y=37 i 261
-rowek hdf 510            → T82, cała długość
-otwór fi 8 gł 12 100 200
-konfirmat 100 200
-otwór fi 5 4 otw co 32 100 37
-wycięcie 200x100 na 300 150 gł 10
-okrąg fi 60 300 200
-DX-100 / DX/2            → zostaje jako formuła</pre>
-Liczby bez opisu = położenie X. Po polsku i po rusku («петли 100 600», «щит 600», «полки 300»).<br>Wstawia przed XN (albo pod zaznaczoną linią); ↶ cofa.</div>`;
-function doCmd(){const inp=$('cmdIn');const v=inp.value.trim();const out=$('cmdOut');if(!v){out.innerHTML=CMD_HELP;return}
- const r=runCmd(v);if(r.err){out.innerHTML=`<div class="res bad">${esc(r.err)}</div>`;return}
+const cmdHelpBox=()=>`<div class="res"><b>Przykłady / примеры</b> — wysokość liczona <b>od dolnej bazy w górę</b> (${SET.hAxis==='x'?'wzdłuż X':'wzdłuż Y'}, ⚙)<pre>W 600                → pod wiązanie na 600: kołki + konfirmaty
+W 600 widoczny       → tylko kołki
+W                    → wiązanie w czole F3+F2 (kołki Ø8×28, konf. Ø4,8×41)
+W lewa / W prawa     → tylko jedna strona
+p32 300              → półka: 3 otw. Ø5 co 32 (środek na 300)
+p64 300 650          → dwie półki, 3 otw. co 64
+zawiasy 100 1500     → płytki (37, ±16)
+zawias front 100 600 → puszki Ø35 + INSERTA Ø8
+prowadnica 200 450   → Ø5 37 i 261
+rowek hdf 510        → T82 na całą długość
+otwór fi 8 gł 12 100 200 / konfirmat 100 200
+wycięcie 200x100 na 300 150 gł 10 / okrąg fi 60 300 200
+W 300; p32 600; W 900 → kilka poleceń przez «;»</pre>
+Po rusku też: «под щит 600», «полки 300», «петли 100 600». DX-100 / DY/2 zostaje formułą.</div>`;
+function doCmd(){const inp=$('cmdIn');const v=inp.value.trim();const out=$('cmdOut');if(!v){out.innerHTML=cmdHelpBox();return}
+ const parts=v.split(/[;\n]+/).map(x=>x.trim()).filter(Boolean);const r={lines:[],what:[]};
+ for(const c of parts){const q=runCmd(c);if(q.err){out.innerHTML=`<div class="res bad">«${esc(c)}»: ${esc(q.err)}</div>`;return}r.lines.push(...q.lines);r.what.push(q.what)}
+ r.what=r.what.join('; ');
  pushUndo();const at=sel>=0?sel+1:lastOpIndex();doc.lines.splice(at,0,...r.lines.map(parseLine));
  hl=new Set(r.lines.map((_,i)=>at+i));sel=-1;refresh();
  out.innerHTML=`<div class="res"><b>+${r.lines.length} linii:</b> ${esc(r.what)} <button id="cmdUndo" style="float:right">↶</button><pre>${esc(r.lines.join('\n'))}</pre></div>`;
  $('cmdUndo').onclick=()=>{$('bUndo').click();hl=new Set();draw();out.innerHTML=''};inp.value='';
  const pn=$('pane');const el=document.querySelector(`.ln[data-li="${at}"]`);if(el)pn.scrollTop=el.offsetTop-pn.clientHeight/3}
 $('cmdGo').onclick=doCmd;$('cmdIn').addEventListener('keydown',e=>{if(e.key=='Enter'){e.preventDefault();doCmd()}});
-$('cmdHelp').onclick=()=>{const o=$('cmdOut');o.innerHTML=o.innerHTML?'':CMD_HELP};
+$('cmdHelp').onclick=()=>{const o=$('cmdOut');o.innerHTML=o.innerHTML?'':cmdHelpBox()};
 cv.addEventListener('pointerdown',()=>{if(hl.size){hl=new Set()}});
 
 // ====== ЯЗЫК (RU / PL) ======
-const PL={"Сначала откройте программу (нужна строка H с DX DY DZ)":"Najpierw otwórz program (potrzebna linia H z DX DY DZ)","XXL – просмотр Xilog": "XXL – podgląd Xilog", "Открыть файл .xxl": "Otwórz plik .xxl", "Файлы заказов с компьютера": "Pliki zamówień z komputera", "Заказы на компьютере": "Zamówienia na komputerze", "📁 Заказы": "📁 Zamówienia", "Сохранить настройки": "Zapisz ustawienia", "Сохранить": "Zapisz", "Отменить": "Cofnij", "Сторона": "Strona", "Измерить: 2 касания": "Pomiar: 2 dotknięcia", "Добавить отверстие касанием": "Dodaj otwór dotknięciem", "Перевернуть Y": "Odwróć Y", "нет файла": "brak pliku", "(компьютер)": "(komputer)", "Код": "Kod", "Размеры": "Wymiary", "Проверка": "Kontrola", "Текст": "Tekst", "Файлы": "Pliki", "Шаг": "Krok", "всё": "wszystko", "Откройте файл .xxl": "Otwórz plik .xxl", "Откройте файл кнопкой": "Otwórz plik przyciskiem", "или выберите во вкладке «Файлы»": "lub wybierz w zakładce «Pliki»", "Как пользоваться": "Jak używać", "Двумя пальцами — масштаб, одним — двигать, двойное касание — вписать.": "Dwa palce — powiększenie, jeden — przesuwanie, podwójne dotknięcie — dopasuj.", "Коснитесь отверстия/фрезы — откроется строка программы с полями для правки.": "Dotknij otworu/frezowania — otworzy się linia programu z polami do edycji.", "Формулы (DX/2, DY-32) сохраняются как есть, рядом показан результат.": "Formuły (DX/2, DY-32) zostają bez zmian, obok widać wynik.", "— измерение двумя касаниями,": "— pomiar dwoma dotknięciami,", "— новое отверстие касанием.": "— nowy otwór dotknięciem.", "«Шаг» — пошаговая симуляция программы.": "«Krok» — symulacja programu krok po kroku.", "Торцы F2–F5 нарисованы полосками вокруг детали.": "Krawędzie F2–F5 narysowane jako paski wokół elementu.", "на телефоне — «Поделиться» → «Сохранить в Файлы» (или в мессенджер); через сервер на ПК — прямо в папку заказа с копией .bak.": "na telefonie — «Udostępnij» → «Zachowaj w Plikach» (lub do komunikatora); przez serwer na PC — prosto do folderu zamówienia z kopią .bak.", "Все открытые файлы хранятся в приложении (вкладка «Файлы») и работают без интернета.": "Wszystkie otwarte pliki są zapisane w aplikacji (zakładka «Pliki») i działają bez internetu.", "Заготовка (H)": "Formatka (H)", "Параметры PAR (вводит оператор)": "Parametry PAR (wpisuje operator)", "Переменные L": "Zmienne L", "Сводка": "Podsumowanie", "Сторон:": "Stron:", "пауза MSG SBY — переворот": "pauza MSG SBY — obrót", "Отверстий:": "Otworów:", "Фрезеровок:": "Frezowań:", "шт.": "szt.", "насквозь": "na wylot", "мм": "mm", "Замечаний нет": "Brak uwag", "стр.": "linia", "Что проверяется": "Co jest sprawdzane", "Добавить R=1 / F=1 везде, где нет": "Dodaj R=1 / F=1 wszędzie, gdzie brak", "XBO/BOANGO без R=1 (Xilog повторяет прошлый R)": "XBO/BOANGO bez R=1 (Xilog powtarza poprzednie R)", "XG0 без F=1": "XG0 bez F=1", "отверстия вне детали / у края, глубина ≥ толщины без N=\"L\"": "otwory poza elementem / przy krawędzi, głębokość ≥ grubości bez N=\"L\"", "торцевые отверстия вне толщины": "otwory w krawędzi poza grubością", "фреза глубже толщины, неизвестный инструмент": "frez głębiej niż grubość, nieznane narzędzie", "деталь больше поля станка": "element większy niż pole maszyny", "нет XN в конце, ошибки в формулах": "brak XN na końcu, błędy w formułach", "нет R=1 — Xilog повторит прошлый R": "brak R=1 — Xilog powtórzy poprzednie R", "инструмент T": "narzędzie T", "не в таблице (⚙)": "nie ma w tabeli (⚙)", "без XG0": "bez XG0", "радиус дуги меньше половины хорды": "promień łuku mniejszy niż połowa cięciwy", "нет строки H DX= DY= DZ=": "brak linii H DX= DY= DZ=", "больше поля": "większy niż pole", "деталь": "element", "нет XN в конце (отъезд)": "brak XN na końcu (odjazd)", "отверстие вне детали": "otwór poza elementem", "глубина": "głębokość", "≥ толщины, а N=\"P\" (не сквозное)": "≥ grubości, a N=\"P\" (nie na wylot)", "отверстие задевает край": "otwór zahacza o krawędź", "отверстие в торце вне толщины": "otwór w krawędzi poza grubością", "фреза глубже толщины": "frez głębiej niż grubość", "неизвестная переменная": "nieznana zmienna", "нет )": "brak )", "лишнее": "nadmiar", "ошибка": "błąd", " в «": " w «", "Применить текст": "Zastosuj tekst", "Применено": "Zastosowano", "✔ Применить": "✔ Zastosuj", "⧉ Копия": "⧉ Kopia", "＋ вставить ниже…": "＋ wstaw poniżej…", "Отверстие": "Otwór", "Ряд отв.": "Rząd otw.", "Сквозное": "Na wylot", "Торец F4": "Krawędź F4", "Фреза": "Frez", "Дуга": "Łuk", "Пауза": "Pauza", "Коммент": "Komentarz", "комментарий": "komentarz", "ещё параметр, напр. V": "kolejny parametr, np. V", "значение": "wartość", "Заготовка: DX длина, DY ширина, DZ толщина": "Formatka: DX długość, DY szerokość, DZ grubość", "Сверление: X Y, Z глубина, D диаметр, R повторы (x/y шаг), N=\"P\" плоское / \"L\" насквозь, F грань": "Wiercenie: X Y, Z głębokość, D średnica, R powtórzenia (x/y skok), N=\"P\" płaskie / \"L\" na wylot, F strona", "Угловое сверление: J угол": "Wiercenie kątowe: J kąt", "Начало фрезеровки: T инструмент, C коррекция (0 нет, 1 справа, 2 слева), Z глубина": "Początek frezowania: T narzędzie, C korekcja (0 brak, 1 prawa, 2 lewa), Z głębokość", "Отрезок до X Y (Z)": "Odcinek do X Y (Z)", "Дуга: конец X Y, r радиус (r<0 — большая дуга), G 2 по час. / 3 против": "Łuk: koniec X Y, r promień (r<0 — duży łuk), G 2 zgodnie z zegarem / 3 przeciwnie", "Дуга: r>0 центр слева от хорды": "Łuk: r>0 środek po lewej od cięciwy", "Дуга: конец X Y, центр I J, G 2/3": "Łuk: koniec X Y, środek I J, G 2/3", "Конец программы, отъезд": "Koniec programu, odjazd", "Параметр, который вводит оператор": "Parametr wpisywany przez operatora", "Переменная": "Zmienna", "Сообщение; SBY=2 — пауза (переворот детали)": "Komunikat; SBY=2 — pauza (obrót elementu)", "Вход фрезы": "Wejście frezu", "Выход фрезы": "Wyjście frezu", "повторы": "powt.", "шаг X": "skok X", "шаг Y": "skok Y", "грань": "strona", "фреза": "frez", "коррекция": "korekcja", "скорость": "prędkość", "направл.": "kierunek", "радиус": "promień", "центр X": "środek X", "центр Y": "środek Y", "длина": "długość", "ширина": "szerokość", "толщина": "grubość", "F4 перед": "F4 przód", "F5 зад": "F5 tył", "Грани": "Strony", "Поле станка": "Pole maszyny", "Инструменты (T = ⌀ мм)": "Narzędzia (T = ⌀ mm)", "Сбросить": "Resetuj", "Язык": "Język", "F2 — правый торец (X=DX), F3 — левый, F4 — перед (Y=0), F5 — зад (Y=DY) — как в мануале Xilog Editor, стр. 81": "F2 — prawa krawędź (X=DX), F3 — lewa, F4 — przód (Y=0), F5 — tył (Y=DY) — jak w instrukcji Xilog Editor, str. 81", "На этом устройстве": "Na tym urządzeniu", "Сюда попадает каждый открытый файл, правки сохраняются сами. Работает без интернета.": "Trafia tu każdy otwarty plik, zmiany zapisują się same. Działa bez internetu.", "📂 Добавить файлы": "📂 Dodaj pliki", "＋ Новая программа": "＋ Nowy program", "поиск…": "szukaj…", "Удалить из приложения:": "Usunąć z aplikacji:", "Имя файла": "Nazwa pliku", "Память для файлов заполнена — удалите старые": "Pamięć na pliki pełna — usuń stare", "файлов — во вкладке «Файлы»": "plików — w zakładce «Pliki»", "Нечего отменять": "Nie ma czego cofnąć", "Сохранено на компьютере (+ .bak)": "Zapisano na komputerze (+ .bak)", "Ошибка:": "Błąd:", "Скачано:": "Pobrano:", "Не открылось": "Nie udało się otworzyć", "Сохранено": "Zapisano", "Исправлено строк:": "Poprawiono linii:", "Коснитесь двух точек (привязка 0,5 мм)": "Dotknij dwóch punktów (skok 0,5 mm)", "Коснитесь места нового отверстия": "Dotknij miejsca nowego otworu", "Добавлено XBO — поправьте D, Z": "Dodano XBO — popraw D, Z", "Список файлов доступен": "Lista plików dostępna"};
+const PL={"Высота «от нижней базы вверх» в командах ✍":"Wysokość «od dolnej bazy w górę» w poleceniach ✍","вдоль Y ↑":"wzdłuż Y ↑","вдоль X →":"wzdłuż X →","Сначала откройте программу (нужна строка H с DX DY DZ)":"Najpierw otwórz program (potrzebna linia H z DX DY DZ)","XXL – просмотр Xilog": "XXL – podgląd Xilog", "Открыть файл .xxl": "Otwórz plik .xxl", "Файлы заказов с компьютера": "Pliki zamówień z komputera", "Заказы на компьютере": "Zamówienia na komputerze", "📁 Заказы": "📁 Zamówienia", "Сохранить настройки": "Zapisz ustawienia", "Сохранить": "Zapisz", "Отменить": "Cofnij", "Сторона": "Strona", "Измерить: 2 касания": "Pomiar: 2 dotknięcia", "Добавить отверстие касанием": "Dodaj otwór dotknięciem", "Перевернуть Y": "Odwróć Y", "нет файла": "brak pliku", "(компьютер)": "(komputer)", "Код": "Kod", "Размеры": "Wymiary", "Проверка": "Kontrola", "Текст": "Tekst", "Файлы": "Pliki", "Шаг": "Krok", "всё": "wszystko", "Откройте файл .xxl": "Otwórz plik .xxl", "Откройте файл кнопкой": "Otwórz plik przyciskiem", "или выберите во вкладке «Файлы»": "lub wybierz w zakładce «Pliki»", "Как пользоваться": "Jak używać", "Двумя пальцами — масштаб, одним — двигать, двойное касание — вписать.": "Dwa palce — powiększenie, jeden — przesuwanie, podwójne dotknięcie — dopasuj.", "Коснитесь отверстия/фрезы — откроется строка программы с полями для правки.": "Dotknij otworu/frezowania — otworzy się linia programu z polami do edycji.", "Формулы (DX/2, DY-32) сохраняются как есть, рядом показан результат.": "Formuły (DX/2, DY-32) zostają bez zmian, obok widać wynik.", "— измерение двумя касаниями,": "— pomiar dwoma dotknięciami,", "— новое отверстие касанием.": "— nowy otwór dotknięciem.", "«Шаг» — пошаговая симуляция программы.": "«Krok» — symulacja programu krok po kroku.", "Торцы F2–F5 нарисованы полосками вокруг детали.": "Krawędzie F2–F5 narysowane jako paski wokół elementu.", "на телефоне — «Поделиться» → «Сохранить в Файлы» (или в мессенджер); через сервер на ПК — прямо в папку заказа с копией .bak.": "na telefonie — «Udostępnij» → «Zachowaj w Plikach» (lub do komunikatora); przez serwer na PC — prosto do folderu zamówienia z kopią .bak.", "Все открытые файлы хранятся в приложении (вкладка «Файлы») и работают без интернета.": "Wszystkie otwarte pliki są zapisane w aplikacji (zakładka «Pliki») i działają bez internetu.", "Заготовка (H)": "Formatka (H)", "Параметры PAR (вводит оператор)": "Parametry PAR (wpisuje operator)", "Переменные L": "Zmienne L", "Сводка": "Podsumowanie", "Сторон:": "Stron:", "пауза MSG SBY — переворот": "pauza MSG SBY — obrót", "Отверстий:": "Otworów:", "Фрезеровок:": "Frezowań:", "шт.": "szt.", "насквозь": "na wylot", "мм": "mm", "Замечаний нет": "Brak uwag", "стр.": "linia", "Что проверяется": "Co jest sprawdzane", "Добавить R=1 / F=1 везде, где нет": "Dodaj R=1 / F=1 wszędzie, gdzie brak", "XBO/BOANGO без R=1 (Xilog повторяет прошлый R)": "XBO/BOANGO bez R=1 (Xilog powtarza poprzednie R)", "XG0 без F=1": "XG0 bez F=1", "отверстия вне детали / у края, глубина ≥ толщины без N=\"L\"": "otwory poza elementem / przy krawędzi, głębokość ≥ grubości bez N=\"L\"", "торцевые отверстия вне толщины": "otwory w krawędzi poza grubością", "фреза глубже толщины, неизвестный инструмент": "frez głębiej niż grubość, nieznane narzędzie", "деталь больше поля станка": "element większy niż pole maszyny", "нет XN в конце, ошибки в формулах": "brak XN na końcu, błędy w formułach", "нет R=1 — Xilog повторит прошлый R": "brak R=1 — Xilog powtórzy poprzednie R", "инструмент T": "narzędzie T", "не в таблице (⚙)": "nie ma w tabeli (⚙)", "без XG0": "bez XG0", "радиус дуги меньше половины хорды": "promień łuku mniejszy niż połowa cięciwy", "нет строки H DX= DY= DZ=": "brak linii H DX= DY= DZ=", "больше поля": "większy niż pole", "деталь": "element", "нет XN в конце (отъезд)": "brak XN na końcu (odjazd)", "отверстие вне детали": "otwór poza elementem", "глубина": "głębokość", "≥ толщины, а N=\"P\" (не сквозное)": "≥ grubości, a N=\"P\" (nie na wylot)", "отверстие задевает край": "otwór zahacza o krawędź", "отверстие в торце вне толщины": "otwór w krawędzi poza grubością", "фреза глубже толщины": "frez głębiej niż grubość", "неизвестная переменная": "nieznana zmienna", "нет )": "brak )", "лишнее": "nadmiar", "ошибка": "błąd", " в «": " w «", "Применить текст": "Zastosuj tekst", "Применено": "Zastosowano", "✔ Применить": "✔ Zastosuj", "⧉ Копия": "⧉ Kopia", "＋ вставить ниже…": "＋ wstaw poniżej…", "Отверстие": "Otwór", "Ряд отв.": "Rząd otw.", "Сквозное": "Na wylot", "Торец F4": "Krawędź F4", "Фреза": "Frez", "Дуга": "Łuk", "Пауза": "Pauza", "Коммент": "Komentarz", "комментарий": "komentarz", "ещё параметр, напр. V": "kolejny parametr, np. V", "значение": "wartość", "Заготовка: DX длина, DY ширина, DZ толщина": "Formatka: DX długość, DY szerokość, DZ grubość", "Сверление: X Y, Z глубина, D диаметр, R повторы (x/y шаг), N=\"P\" плоское / \"L\" насквозь, F грань": "Wiercenie: X Y, Z głębokość, D średnica, R powtórzenia (x/y skok), N=\"P\" płaskie / \"L\" na wylot, F strona", "Угловое сверление: J угол": "Wiercenie kątowe: J kąt", "Начало фрезеровки: T инструмент, C коррекция (0 нет, 1 справа, 2 слева), Z глубина": "Początek frezowania: T narzędzie, C korekcja (0 brak, 1 prawa, 2 lewa), Z głębokość", "Отрезок до X Y (Z)": "Odcinek do X Y (Z)", "Дуга: конец X Y, r радиус (r<0 — большая дуга), G 2 по час. / 3 против": "Łuk: koniec X Y, r promień (r<0 — duży łuk), G 2 zgodnie z zegarem / 3 przeciwnie", "Дуга: r>0 центр слева от хорды": "Łuk: r>0 środek po lewej od cięciwy", "Дуга: конец X Y, центр I J, G 2/3": "Łuk: koniec X Y, środek I J, G 2/3", "Конец программы, отъезд": "Koniec programu, odjazd", "Параметр, который вводит оператор": "Parametr wpisywany przez operatora", "Переменная": "Zmienna", "Сообщение; SBY=2 — пауза (переворот детали)": "Komunikat; SBY=2 — pauza (obrót elementu)", "Вход фрезы": "Wejście frezu", "Выход фрезы": "Wyjście frezu", "повторы": "powt.", "шаг X": "skok X", "шаг Y": "skok Y", "грань": "strona", "фреза": "frez", "коррекция": "korekcja", "скорость": "prędkość", "направл.": "kierunek", "радиус": "promień", "центр X": "środek X", "центр Y": "środek Y", "длина": "długość", "ширина": "szerokość", "толщина": "grubość", "F4 перед": "F4 przód", "F5 зад": "F5 tył", "Грани": "Strony", "Поле станка": "Pole maszyny", "Инструменты (T = ⌀ мм)": "Narzędzia (T = ⌀ mm)", "Сбросить": "Resetuj", "Язык": "Język", "F2 — правый торец (X=DX), F3 — левый, F4 — перед (Y=0), F5 — зад (Y=DY) — как в мануале Xilog Editor, стр. 81": "F2 — prawa krawędź (X=DX), F3 — lewa, F4 — przód (Y=0), F5 — tył (Y=DY) — jak w instrukcji Xilog Editor, str. 81", "На этом устройстве": "Na tym urządzeniu", "Сюда попадает каждый открытый файл, правки сохраняются сами. Работает без интернета.": "Trafia tu każdy otwarty plik, zmiany zapisują się same. Działa bez internetu.", "📂 Добавить файлы": "📂 Dodaj pliki", "＋ Новая программа": "＋ Nowy program", "поиск…": "szukaj…", "Удалить из приложения:": "Usunąć z aplikacji:", "Имя файла": "Nazwa pliku", "Память для файлов заполнена — удалите старые": "Pamięć na pliki pełna — usuń stare", "файлов — во вкладке «Файлы»": "plików — w zakładce «Pliki»", "Нечего отменять": "Nie ma czego cofnąć", "Сохранено на компьютере (+ .bak)": "Zapisano na komputerze (+ .bak)", "Ошибка:": "Błąd:", "Скачано:": "Pobrano:", "Не открылось": "Nie udało się otworzyć", "Сохранено": "Zapisano", "Исправлено строк:": "Poprawiono linii:", "Коснитесь двух точек (привязка 0,5 мм)": "Dotknij dwóch punktów (skok 0,5 mm)", "Коснитесь места нового отверстия": "Dotknij miejsca nowego otworu", "Добавлено XBO — поправьте D, Z": "Dodano XBO — popraw D, Z", "Список файлов доступен": "Lista plików dostępna"};
 const PL_KEYS=Object.keys(PL).sort((a,b)=>b.length-a.length);
 function tr(t){if(SET.lang!=='pl'||t==null)return t;t=String(t);if(!/[А-Яа-яЁё]/.test(t))return t;for(const k of PL_KEYS)if(t.includes(k))t=t.split(k).join(PL[k]);return t}
 function trNode(root){if(SET.lang!=='pl')return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT|NodeFilter.SHOW_ELEMENT);let n=root;
