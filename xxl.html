@@ -129,7 +129,7 @@ const TOOLS_DEFAULT={"82":3.4,"83":3.4,"91":16.0,"93":10.0,"101":12.0,"102":11.3
 const TOOL_NAMES={"82":"PILA 3,4","83":"PILA 3,4","101":"FREZ MALY WSTAWKI","102":"FREZ FI12","103":"FREZ FI 19.55","104":"FREZ ZENITA","105":"80x14 Frezowanie","106":"FREZ 16","107":"frez maly raczka kopia","109":"GRUBASY  h=70mm","110":"frez skosny 45*","111":"FI=10","112":"HPL Dimar","113":"FREZ DO FRONTU 1","114":"P2B-R4.0","115":"SPIRAL","116":"FREZ DO FRONTU 4","117":"FREZ Z WYMIENNYMI NOZAMI","118":"6X21mm","119":"4x10","120":"6X21mm","121":"FREZ Z WYMIENNYMI NOZAMI","122":"60","123":"frez skosny 45*","124":"91 stopni","125":"PIŁKA 180","126":"stara barsa","127":"SPIRAL","128":"KULA DUZA","129":"FREZ DO FUTRYN","130":"frez skosny 45*","131":"Dimar krztaltowy","132":"P2B-R4.0","133":"Dimar 130","134":"frez profil","135":"80x14 Frezowanie","136":"80 frezowanie","137":"FREZ FI=17.4","138":"profil 28.3","139":"CMT 6x12.7","140":"SZTOTKA 75mm"};
 const FIELD_DEFAULT={x:3050,y:1248};
 let SET=Object.assign({tools:TOOLS_DEFAULT,f2right:true,flipY:false,field:FIELD_DEFAULT,lang:'ru'},JSON.parse(localStorage.getItem('xxl_set')||'{}'));
-if(SET.stol===undefined)SET.stol=true;   // właściciel 08.10: baza w prawym górnym rogu stołu, obrzeżem do bazy
+if(SET.stol===undefined||SET.viewVer!==2){SET.stol=true;SET.viewVer=2}   // właściciel 08.10: baza w prawym górnym rogu stołu, obrzeżem do bazy
 const SX=()=>SET.stol?-1:1, SY=()=>SET.stol?1:(SET.flipY?1:-1);
 if(SET.toolsVer!==TOOLS_VER){SET.tools=TOOLS_DEFAULT;SET.toolsVer=TOOLS_VER;try{localStorage.setItem('xxl_set',JSON.stringify(SET))}catch(e){}}
 function saveSet(){localStorage.setItem('xxl_set',JSON.stringify(SET))}
@@ -316,7 +316,7 @@ function draw(){
  lab('F4 перед',{x:dx/2,y:-g-dz-6/s-8/s});lab('F5 зад',{x:dx/2,y:dy+g+dz+14/s});
  lab(fx?'F2':'F3',{x:dx+g+dz/2,y:dy+12/s});lab(fx?'F3':'F2',{x:-g-dz/2,y:dy+12/s});
  // ноль
- const o=W2S({x:0,y:0});ctx.fillStyle='#ff5d5d';ctx.beginPath();ctx.arc(o.x,o.y,4,0,7);ctx.fill();ctx.textAlign=SX()<0?'left':'right';ctx.fillText((SET.stol?'BAZA 0 ':'0 ')+(model.origin||''),o.x-SX()*8,o.y-SY()*8);ctx.textAlign='center';
+ const o=W2S({x:0,y:0});ctx.fillStyle='#ff5d5d';ctx.beginPath();ctx.arc(o.x,o.y,4,0,7);ctx.fill();ctx.textAlign=SX()<0?'left':'right';ctx.fillText(SET.stol?'BAZA':'0 '+(model.origin||''),o.x-SX()*8,o.y-SY()*8);ctx.textAlign='center';
  ctx.fillStyle='#e8edf2';ctx.font='bold 13px sans-serif';lab(`${f1(dx)} × ${f1(dy)} × ${f1(dz)}`,{x:dx/2,y:dy/2});
  // фрезеровки
  for(const e of model.els){if(e.type!='path'||!visible(e))continue;
@@ -546,7 +546,8 @@ async function openSrv(p){const r=await fetch('/api/file?p='+encodeURIComponent(
 // ====== КНОПКИ ======
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
 $('zIn').onclick=()=>zoomAt(W/2,H/2,1.5);$('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.5);$('zFit').onclick=fit;
-$('zFlip').onclick=()=>{SET.stol=!SET.stol;saveSet();fit();toast(SET.stol?'Вид: как на столе — база справа вверху, кромка к базе':'Вид: как в Xilog — 0 слева внизу')};
+const flipLbl=()=>{$('zFlip').textContent=SET.stol?'↗0':'↙0'};flipLbl();
+$('zFlip').onclick=()=>{SET.stol=!SET.stol;saveSet();flipLbl();fit();toast(SET.stol?'Вид: как на столе — база справа вверху, кромка к базе':'Вид: как в Xilog — 0 слева внизу')};
 $('sSide').onchange=e=>{sideF=e.target.value;draw()};
 $('bMeas').onclick=()=>{mode=mode=='meas'?'':'meas';meas=[];$('bMeas').classList.toggle('on',mode=='meas');$('bAdd').classList.remove('on');draw();if(mode)toast('Коснитесь двух точек (привязка 0,5 мм)')};
 $('bAdd').onclick=()=>{mode=mode=='add'?'':'add';$('bAdd').classList.toggle('on',mode=='add');$('bMeas').classList.remove('on');meas=[];draw();if(mode)toast('Коснитесь места нового отверстия')};
@@ -582,13 +583,17 @@ function runCmd(raw){
  t=t.replace(/^\s*w(?=\s|\d|$)/,' wiazanie ').replace(/(^|\s)p\s*(32|64)(?=\s|$)/,' polki co $2 ');
  const has=re=>re.test(t);const take=re=>{const m=re.exec(t);if(!m)return null;t=t.replace(m[0],' ');return m};
  const num=v=>parseFloat(v);
- let m;const size=take(/(\d+\.?\d*)\s*[x×х\*]\s*(\d+\.?\d*)/);
- const D=(m=take(/(?:fi|ø|⌀|srednic\w*|диам\w*|ф)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
- const Z=(m=take(/(?:gl\w*|глуб\w*|гл\.?)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
- const step=(m=take(/(?:co|rozstaw|шаг|через)\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
+ // liczba = całe wyrażenie (kalkulator): 720/2, 300+16, (DX-36)/2; z DX/DY/DZ zostaje formułą (parametrycznie)
+ const OP='(?:d[xyz]|\\d+(?:\\.\\d+)?|\\.\\d+)',EX=`-?\\(*\\s*${OP}\\s*\\)*(?:\\s*[-+*/]\\s*\\(*\\s*${OP}\\s*\\)*)*`,NEX='\\(*\\d+(?:\\.\\d+)?\\)*(?:\\s*[-+*/]\\s*\\(*\\d+(?:\\.\\d+)?\\)*)*';
+ const exv=v=>{v=v.replace(/\s+/g,'');return /d[xyz]/i.test(v)?v.toUpperCase():evalExpr(v,{})};      // liczba albo formuła z DX
+ const exn=v=>evalExpr(String(v).replace(/\s+/g,'').toUpperCase(),model.vars);                       // zawsze liczba
+ let m;const size=take(new RegExp(`(${NEX})(?:[x×х]|\\s*×\\s*)(${NEX})`));
+ const D=(m=take(new RegExp(`(?:fi|ø|⌀|srednic\\w*|диам\\w*|ф)\\s*=?\\s*(${EX})`)))?exn(m[1]):null;
+ const Z=(m=take(new RegExp(`(?:gl\\w*|глуб\\w*|гл\\.?)\\s*=?\\s*(${EX})`)))?exn(m[1]):null;
+ const step=(m=take(new RegExp(`(?:co|rozstaw|шаг|через)\\s*=?\\s*(${EX})`)))?exn(m[1]):null;
  const cnt=(m=take(/(\d+)\s*(?:otw\w*|szt\w*|шт\w*|отв\w*)/))?parseInt(m[1]):null;
- const tx=(m=take(/\bx\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null, ty=(m=take(/\by\s*=?\s*(\d+\.?\d*)/))?num(m[1]):null;
- const nums=[];t.replace(/(?:d[xy]\s*[-+\/]\s*\d+\.?\d*|-?\d+\.?\d*)/g,v=>{nums.push(/d/.test(v)?v.toUpperCase().replace(/\s/g,''):num(v));return v});
+ const tx=(m=take(new RegExp(`\\bx\\s*=?\\s*(${EX})`)))?exv(m[1]):null, ty=(m=take(new RegExp(`\\by\\s*=?\\s*(${EX})`)))?exv(m[1]):null;
+ const nums=[];t.replace(new RegExp(EX,'g'),v=>{if(v.trim())nums.push(exv(v));return v});
  const val=v=>typeof v=='string'?evalExpr(v,model.vars):v;
  const L=[],what=[];const com=c=>' ;'+c;
  // wysokość = od DOŁU szafki w górę; w programach maszyny dół boku = X=DX (góra = X=0), więc X = DX − wysokość; fronty: dół = X=0
@@ -637,12 +642,12 @@ function runCmd(raw){
    else for(const b of jp.konf)hA(a,b,'DZ+8',7,'L','konfirmat na wylot, '+oś(a))}
   what.push('pod wiązanie '+(visible?'(kołki) ':'')+'×'+P.length)}
  else if(has(/rowek|rowk|wpust|hdf|паз|канав/)){
-  const b=nums.length?nums[0]:Ad-16;const g=size?num(size[2]):(Z||10);
+  const b=nums.length?nums[0]:Ad-16;const g=size?exn(size[2]):(Z||10);
   const st=AY?`X=${pxv(b,Ad,An)} Y=0`:`X=0 Y=${pxv(b,Ad,An)}`;
   L.push('XGIN Q=0 R=1 G=1',`XG0 ${st} Z=${f1(g)} T=82 C=1 E=1 F=1`+com('rowek HDF '+(size?size[1]+'x'+size[2]:'4x'+f1(g))),AY?'XL2P Y=DY':'XL2P X=DX','XGOUT Q=0 G=1');what.push('rowek HDF '+f1(val(b))+' od przodu')}
  else if(has(/wyciec|wycin|prostok|kiesz|вырез|прямоуг|карман/)){
   if(!size||nums.length<2)return {err:'Np. «wycięcie 200x100 na 300 150 gł 10» (szer×wys, lewy dolny róg X Y)'};
-  const w=num(size[1]),h=num(size[2]),x=val(nums[0]),y=val(nums[1]),z=Z!=null?Z:dz+1;
+  const w=exn(size[1]),h=exn(size[2]),x=val(nums[0]),y=val(nums[1]),z=Z!=null?Z:dz+1;
   L.push('XGIN Q=0 G=1',`XG0 X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${f1(z)} T=104 E=1 C=2 F=1`+com('wycięcie '+w+'x'+h),`XL2P X=${pxv(x+w,dx,'DX')}`,`XL2P Y=${pxv(y+h,dy,'DY')}`,`XL2P X=${pxv(x,dx,'DX')}`,`XL2P Y=${pxv(y,dy,'DY')}`,'XGOUT Q=0 G=1');
   what.push('wycięcie '+w+'×'+h+' T104')}
  else if(has(/okrag|kolo|kolko|круг|окруж/)||(D&&D>35)){
@@ -732,7 +737,7 @@ function newElement(){
  d.style.display='block';d.onclick=e=>{if(e.target===d)d.style.display='none'};
  $('nCancel').onclick=()=>d.style.display='none';
  $('nOk').onclick=()=>{
-  const num=id=>parseFloat(String(($(id)||{}).value||'').replace(',','.'));
+  const num=id=>{const v=String(($(id)||{}).value||'').replace(/,/g,'.').trim();try{return v?evalExpr(v,{}):NaN}catch(e){return NaN}};
   const dx=num('nDX'),dy=num('nDY'),dz=num('nDZ')||18;if(!(dx>0&&dy>0))return toast('Укажите DX и DY');
   const type=$('nType').value,t=NEW_TYPES[type];const name=$('nName').value.trim()||t.n;const mat=$('nMat').value.trim();
   const val=id=>{const e=$(id);return e?e.value.trim().replace(/,/g,'.'):''};const ck=id=>{const e=$(id);return !!(e&&e.checked)};
