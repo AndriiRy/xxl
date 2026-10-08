@@ -459,7 +459,7 @@ function help(){return `<h4>Как пользоваться</h4><div class="smal
 function renderSet(){
  const pane=$('pane');
  pane.innerHTML=`<h4>Язык / Język</h4><div class="btns"><button id="sRu">Русский</button><button id="sPl">Polski</button></div><h4>Грани</h4><label><input type="checkbox" id="sF2" ${SET.f2right?'checked':''}> F2 — правый торец (X=DX), F3 — левый, F4 — перед (Y=0), F5 — зад (Y=DY) — как в мануале Xilog Editor, стр. 81</label>
- <h4>Высота «от нижней базы вверх» в командах ✍</h4><div class="btns"><button id="sAy" class="${SET.hAxis!=='x'?'on':''}">вдоль Y ↑</button><button id="sAx" class="${SET.hAxis==='x'?'on':''}">вдоль X →</button></div><h4>Поле станка</h4><div class="kv"><b>X</b><input id="sFx" value="${SET.field.x}"><span>мм</span><b>Y</b><input id="sFy" value="${SET.field.y}"><span>мм</span></div>
+ <h4>Высота «от нижней базы вверх» в командах ✍</h4><div class="btns"><button id="sAy" class="${SET.hAxis==='y'?'on':''}">вдоль Y ↑</button><button id="sAx" class="${SET.hAxis!=='y'?'on':''}">вдоль X →</button></div><h4>Поле станка</h4><div class="kv"><b>X</b><input id="sFx" value="${SET.field.x}"><span>мм</span><b>Y</b><input id="sFy" value="${SET.field.y}"><span>мм</span></div>
  <h4>Инструменты (T = ⌀ мм)</h4><div class="small">DEF.TLG ${TOOLS_VER} (Google Drive)</div><textarea id="sT" style="width:100%;height:200px;font-family:monospace">${Object.entries(SET.tools).map(([k,v])=>k+'='+v+(TOOL_NAMES[k]?'   ; '+TOOL_NAMES[k]:'')).join('\n')}</textarea>
  <div class="btns"><button id="sOk">Сохранить настройки</button><button id="sRst">Сбросить</button></div>`;
  $('sOk').onclick=()=>{SET.f2right=$('sF2').checked;SET.field={x:+$('sFx').value||3050,y:+$('sFy').value||1248};const t={};$('sT').value.split(/\n/).forEach(l=>{const m=/^\s*(\d+)\s*[=:]\s*([\d.,]+)/.exec(l);if(m)t[m[1]]=parseFloat(m[2].replace(',','.'))});SET.tools=t;SET.toolsVer=TOOLS_VER;saveSet();refresh();toast('Сохранено')};
@@ -552,7 +552,7 @@ function runCmd(raw){
  if(!model||!model.dx)return {err:'Сначала откройте программу (нужна строка H с DX DY DZ)'};
  const dx=model.dx,dy=model.dy,dz=model.dz;let t=' '+normCmd(raw)+' ';
  // skróty: W = wiązanie, p32 / p64 = półki (3 otw. co 32 / 64)
- t=t.replace(/^\s*w(?=\s|\d|$)/,' wiazanie ').replace(/^\s*p\s*(32|64)(?=\s|$)/,' polki co $1 ');
+ t=t.replace(/^\s*w(?=\s|\d|$)/,' wiazanie ').replace(/(^|\s)p\s*(32|64)(?=\s|$)/,' polki co $2 ');
  const has=re=>re.test(t);const take=re=>{const m=re.exec(t);if(!m)return null;t=t.replace(m[0],' ');return m};
  const num=v=>parseFloat(v);
  let m;const size=take(/(\d+\.?\d*)\s*[x×х\*]\s*(\d+\.?\d*)/);
@@ -564,8 +564,8 @@ function runCmd(raw){
  const nums=[];t.replace(/(?:d[xy]\s*[-+\/]\s*\d+\.?\d*|-?\d+\.?\d*)/g,v=>{nums.push(/d/.test(v)?v.toUpperCase().replace(/\s/g,''):num(v));return v});
  const val=v=>typeof v=='string'?evalExpr(v,model.vars):v;
  const L=[],what=[];const com=c=>' ;'+c;
- // wysokość = od dolnej bazy w górę: domyślnie wzdłuż Y (⚙ — można przełączyć na X)
- const AY=SET.hAxis!=='x';const Hd=AY?dy:dx,Hn=AY?'DY':'DX',Ad=AY?dx:dy,An=AY?'DX':'DY',sl=AY?'y':'x';
+ // wysokość = od dolnej bazy (X=0) w górę wzdłuż DX; ⚙ — można przełączyć na Y
+ const AY=SET.hAxis==='y';const Hd=AY?dy:dx,Hn=AY?'DY':'DX',Ad=AY?dx:dy,An=AY?'DX':'DY',sl=AY?'y':'x';
  const add=(a,k)=>typeof a=='string'?a+(k<0?'-':'+')+f1(Math.abs(k)):a+k;
  const XY=(a,b)=>AY?`X=${pxv(b,Ad,An)} Y=${pxv(a,Hd,Hn)}`:`X=${pxv(a,Hd,Hn)} Y=${pxv(b,Ad,An)}`;
  const hA=(a,b,z,d,n,c)=>L.push(`XBO ${XY(a,b)} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
@@ -634,7 +634,7 @@ function runCmd(raw){
  }catch(e){return {err:e.message}}
  return {lines:L,what:what.join(', ')};
 }
-const cmdHelpBox=()=>`<div class="res"><b>Przykłady / примеры</b> — wysokość liczona <b>od dolnej bazy w górę</b> (${SET.hAxis==='x'?'wzdłuż X':'wzdłuż Y'}, ⚙)<pre>W 600                → pod wiązanie na 600: kołki + konfirmaty
+const cmdHelpBox=()=>`<div class="res"><b>Przykłady / примеры</b> — wysokość liczona <b>od dolnej bazy w górę</b> (${SET.hAxis==='y'?'wzdłuż Y':'wzdłuż X od X=0'}, ⚙)<pre>W 600                → pod wiązanie na 600: kołki + konfirmaty
 W 600 widoczny       → tylko kołki
 W                    → wiązanie w czole F3+F2 (kołki Ø8×28, konf. Ø4,8×41)
 W lewa / W prawa     → tylko jedna strona
