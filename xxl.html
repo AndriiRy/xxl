@@ -91,7 +91,7 @@ h4{margin:10px 0 4px}
  <div id="main">
   <div id="view">
    <canvas id="cv"></canvas>
-   <div id="zbtn"><button id="zIn">＋</button><button id="zOut">－</button><button id="zFit">⤢</button><button id="zFlip" title="Перевернуть Y">⇅</button></div>
+   <div id="zbtn"><button id="zIn">＋</button><button id="zOut">－</button><button id="zFit">⤢</button><button id="zFlip" title="Вид: как на столе (база справа вверху) / как в Xilog (0 слева внизу)">⇄</button></div>
    <div id="hud"></div>
   </div>
   <div id="side">
@@ -119,6 +119,8 @@ const TOOLS_DEFAULT={"82":3.4,"83":3.4,"91":16.0,"93":10.0,"101":12.0,"102":11.3
 const TOOL_NAMES={"101":"FREZ MALY WSTAWKI","102":"FREZ FI12","103":"FREZ FI 19.55","104":"FREZ ZENITA","105":"80x14 Frezowanie","106":"FREZ 16","107":"frez maly raczka kopia","109":"GRUBASY  h=70mm","110":"frez skosny 45*","111":"FI=10","112":"HPL Dimar","113":"FREZ DO FRONTU 1","114":"P2B-R4.0","115":"SPIRAL","116":"FREZ DO FRONTU 4","117":"FREZ Z WYMIENNYMI NOZAMI","118":"6X21mm","119":"4x10","120":"6X21mm","121":"FREZ Z WYMIENNYMI NOZAMI","122":"60","123":"frez skosny 45*","124":"91 stopni","125":"PIŁKA 180","126":"stara barsa","127":"SPIRAL","128":"KULA DUZA","129":"FREZ DO FUTRYN","130":"frez skosny 45*","131":"Dimar krztaltowy","132":"P2B-R4.0","133":"Dimar 130","134":"frez profil","135":"80x14 Frezowanie","136":"80 frezowanie","137":"FREZ FI=17.4","138":"profil 28.3","139":"CMT 6x12.7","140":"SZTOTKA 75mm"};
 const FIELD_DEFAULT={x:3050,y:1248};
 let SET=Object.assign({tools:TOOLS_DEFAULT,f2right:true,flipY:false,field:FIELD_DEFAULT,lang:'ru'},JSON.parse(localStorage.getItem('xxl_set')||'{}'));
+if(SET.stol===undefined)SET.stol=true;   // właściciel 08.10: baza w prawym górnym rogu stołu, obrzeżem do bazy
+const SX=()=>SET.stol?-1:1, SY=()=>SET.stol?1:(SET.flipY?1:-1);
 if(SET.toolsVer!==TOOLS_VER){SET.tools=TOOLS_DEFAULT;SET.toolsVer=TOOLS_VER;try{localStorage.setItem('xxl_set',JSON.stringify(SET))}catch(e){}}
 function saveSet(){localStorage.setItem('xxl_set',JSON.stringify(SET))}
 
@@ -275,12 +277,12 @@ function holeDepthLine(e){const dx=model.dx,dy=model.dy;
  return null}
 
 // ====== РИСОВАНИЕ ======
-const W2S=p=>({x:view.ox+p.x*view.s,y:view.oy+(SET.flipY?1:-1)*p.y*view.s});
-const S2W=(x,y)=>({x:(x-view.ox)/view.s,y:(y-view.oy)/((SET.flipY?1:-1)*view.s)});
+const W2S=p=>({x:view.ox+SX()*p.x*view.s,y:view.oy+SY()*p.y*view.s});
+const S2W=(x,y)=>({x:(x-view.ox)/(SX()*view.s),y:(y-view.oy)/(SY()*view.s)});
 function visible(e){return (sideF=='all'||String(e.side)==sideF)&&e.li<=step}
 function fit(){if(!model)return;const g=gap()+model.dz+10;let x0=-g,y0=-g,x1=model.dx+g,y1=model.dy+g;
  for(const e of model.els)if(e.type=='path')for(const s of e.segs)for(const p of s.pts){x0=Math.min(x0,p.x-e.d);x1=Math.max(x1,p.x+e.d);y0=Math.min(y0,p.y-e.d);y1=Math.max(y1,p.y+e.d)}
- const s=Math.min(W/(x1-x0),H/(y1-y0))*0.92;view.s=s;view.ox=W/2-(x0+x1)/2*s;view.oy=H/2+(SET.flipY?-1:1)*(y0+y1)/2*s;draw()}
+ const s=Math.min(W/(x1-x0),H/(y1-y0))*0.92;view.s=s;view.ox=W/2-SX()*(x0+x1)/2*s;view.oy=H/2-SY()*(y0+y1)/2*s;draw()}
 function resize(){const r=$('view').getBoundingClientRect();dpr=window.devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;draw()}
 function holeColor(e){if(e.n=='L'||e.z>=model.dz)return '#ff5d5d';return {5:'#59d38c',8:'#58a6ff',7:'#ff9f5d',35:'#e3b341',4.8:'#d2a8ff',25:'#ffd866'}[e.d]||'#7fd6e8'}
 function draw(){
@@ -301,7 +303,7 @@ function draw(){
  lab('F4 перед',{x:dx/2,y:-g-dz-6/s-8/s});lab('F5 зад',{x:dx/2,y:dy+g+dz+14/s});
  lab(fx?'F2':'F3',{x:dx+g+dz/2,y:dy+12/s});lab(fx?'F3':'F2',{x:-g-dz/2,y:dy+12/s});
  // ноль
- const o=W2S({x:0,y:0});ctx.fillStyle='#ff5d5d';ctx.beginPath();ctx.arc(o.x,o.y,4,0,7);ctx.fill();ctx.fillText('0 '+(model.origin||''),o.x-14,o.y+(SET.flipY?-6:14));
+ const o=W2S({x:0,y:0});ctx.fillStyle='#ff5d5d';ctx.beginPath();ctx.arc(o.x,o.y,4,0,7);ctx.fill();ctx.textAlign=SX()<0?'left':'right';ctx.fillText((SET.stol?'BAZA 0 ':'0 ')+(model.origin||''),o.x-SX()*8,o.y-SY()*8);ctx.textAlign='center';
  ctx.fillStyle='#e8edf2';ctx.font='bold 13px sans-serif';lab(`${f1(dx)} × ${f1(dy)} × ${f1(dz)}`,{x:dx/2,y:dy/2});
  // фрезеровки
  for(const e of model.els){if(e.type!='path'||!visible(e))continue;
@@ -523,7 +525,7 @@ async function openSrv(p){const r=await fetch('/api/file?p='+encodeURIComponent(
 // ====== КНОПКИ ======
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
 $('zIn').onclick=()=>zoomAt(W/2,H/2,1.5);$('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.5);$('zFit').onclick=fit;
-$('zFlip').onclick=()=>{SET.flipY=!SET.flipY;saveSet();fit()};
+$('zFlip').onclick=()=>{SET.stol=!SET.stol;saveSet();fit();toast(SET.stol?'Вид: как на столе — база справа вверху, кромка к базе':'Вид: как в Xilog — 0 слева внизу')};
 $('sSide').onchange=e=>{sideF=e.target.value;draw()};
 $('bMeas').onclick=()=>{mode=mode=='meas'?'':'meas';meas=[];$('bMeas').classList.toggle('on',mode=='meas');$('bAdd').classList.remove('on');draw();if(mode)toast('Коснитесь двух точек (привязка 0,5 мм)')};
 $('bAdd').onclick=()=>{mode=mode=='add'?'':'add';$('bAdd').classList.toggle('on',mode=='add');$('bMeas').classList.remove('on');meas=[];draw();if(mode)toast('Коснитесь места нового отверстия')};
@@ -543,7 +545,7 @@ function toast(t){const d=$('toast');d.textContent=tr(t);d.style.display='block'
 // ====== КОМАНДЫ ТЕКСТОМ (PL / RU) → XBO / XG0 ======
 // Wymiary jak w tools\fusion_cnc.py i технология-KaPi.md: kołek Ø8×12 (czoło ×28), konfirmat Ø7 na wylot (czoło Ø4,8×41),
 // konfirmaty 64 od końców (+ co ≤450), kołki 32 od końców (+ środkowy >400); zawias: płytka Y=37 ±16 Ø5×12, puszka Ø35×13 Y=22,5,
-// śruby puszki Ø8×11,5 (Y=32, ±22,5); półki Ø5×10, 37 od krawędzi, 3 otw. co 32; prowadnice Ø5×12 Y=37 i 261.
+// śruby puszki Ø8×11,5 (Y=32, ±22,5); półki Ø5×12, 50 i DY−50 (właściciel 08.10), 3 otw. co 32; prowadnice Ø5×12 Y=37 i 261.
 function normCmd(t){return t.toLowerCase().replace(/[ąćęłńóśźż]/g,c=>({'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z'})[c]).replace(/(\d),(\d)/g,'$1.$2').replace(/ё/g,'е')}
 function jointPos(L,vis){ // = joint_layout() w tools/fusion_cnc.py (właściciel 07.10/08.10): kołek 32 od końców, konfirmat 64 od końców, w ŚRODKU konfirmat
  if(vis)return {kol:L<=150?[32,L-32]:[32,L/2,L-32],konf:[]};          // widoczny bok — same kołki
@@ -568,12 +570,14 @@ function runCmd(raw){
  const nums=[];t.replace(/(?:d[xy]\s*[-+\/]\s*\d+\.?\d*|-?\d+\.?\d*)/g,v=>{nums.push(/d/.test(v)?v.toUpperCase().replace(/\s/g,''):num(v));return v});
  const val=v=>typeof v=='string'?evalExpr(v,model.vars):v;
  const L=[],what=[];const com=c=>' ;'+c;
- // wysokość = od dolnej bazy (X=0) w górę wzdłuż DX; ⚙ — można przełączyć na Y
+ // wysokość = od DOŁU szafki w górę; w programach maszyny dół boku = X=DX (góra = X=0), więc X = DX − wysokość; fronty: dół = X=0
  const AY=SET.hAxis==='y';const Hd=AY?dy:dx,Hn=AY?'DY':'DX',Ad=AY?dx:dy,An=AY?'DX':'DY',sl=AY?'y':'x';
  const add=(a,k)=>typeof a=='string'?a+(k<0?'-':'+')+f1(Math.abs(k)):a+k;
+ const FRONT=has(/front|drzw|puszk|фасад|двер|чашк/);
+ const hm=a=>FRONT?a:(typeof a=='string'?(a.toUpperCase().startsWith(Hn+'-')?a.slice(Hn.length+1):Hn+'-('+a+')'):Hd-a); // wysokość od dołu -> współrzędna maszyny
  const XY=(a,b)=>AY?`X=${pxv(b,Ad,An)} Y=${pxv(a,Hd,Hn)}`:`X=${pxv(a,Hd,Hn)} Y=${pxv(b,Ad,An)}`;
- const hA=(a,b,z,d,n,c)=>L.push(`XBO ${XY(a,b)} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
- const rA=(a,b,z,d,k,st,c)=>L.push(`XBO ${XY(a,b)} Z=${z} R=${k}# ${sl}=${f1(st)} D=${f1(d)} N="P" F=1`+com(c));
+ const hA=(a,b,z,d,n,c)=>L.push(`XBO ${XY(hm(a),b)} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
+ const rA=(a,b,z,d,k,st,c)=>L.push(`XBO ${XY(hm(FRONT?a:add(a,st*(k-1))),b)} Z=${z} R=${k}# ${sl}=${f1(st)} D=${f1(d)} N="P" F=1`+com(c));
  const hE=(y,z,d,f,c)=>L.push(`XBO X=DZ/2 Y=${pxv(y,dy,'DY')} Z=${z} R=1 D=${f1(d)} N="P" F=${f}`+com(c));
  const hXY=(x,y,z,d,n,c)=>L.push(`XBO X=${pxv(x,dx,'DX')} Y=${pxv(y,dy,'DY')} Z=${z} R=1 D=${f1(d)} N="${n}" F=1`+com(c));
  const xs=()=>nums.length?nums:(tx!=null?[tx]:ty!=null?[ty]:[]);
@@ -595,7 +599,7 @@ function runCmd(raw){
   for(const a of P)for(const b of [37,261])hA(a,b,12,5,'P','prowadnica (37 + 261), '+oś(a));what.push('prowadnice ×'+P.length)}
  else if(has(/polk|полк/)&&!has(/stal|стац|неподв/)){
   const P=xs();if(!P.length)return {err:'Podaj wysokość półki, np. «p32 300» lub «półki 300 i 650»'};
-  const k=cnt||3,st=step||32;for(const a of P){const a0=add(a,-st*(k-1)/2);for(const b of [37,Ad-37])rA(a0,b,10,5,k,st,'półka ruchoma, '+k+' otw. co '+st+', '+oś(a))}
+  const k=cnt||3,st=step||32;for(const a of P){const a0=add(a,-st*(k-1)/2);for(const b of [50,add(Ad,-50)])rA(a0,b,12,5,k,st,'półka ruchoma, '+k+' otw. co '+st+', '+oś(a))}
   what.push('półki '+k+' otw. co '+st+' ×'+P.length)}
  else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|wi[ae]zan|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|krawed|czol|торец|кромк/)){
   const jp=jointPos(dy,visible);const faces=left&&!right?[3]:right&&!left?[2]:[3,2];
@@ -638,11 +642,11 @@ function runCmd(raw){
  }catch(e){return {err:e.message}}
  return {lines:L,what:what.join(', ')};
 }
-const cmdHelpBox=()=>`<div class="res"><b>Przykłady / примеры</b> — wysokość liczona <b>od dolnej bazy w górę</b> (${SET.hAxis==='y'?'wzdłuż Y':'wzdłuż X od X=0'}, ⚙)<pre>W 600                → pod wiązanie na 600: kołki + konfirmaty
+const cmdHelpBox=()=>`<div class="res"><b>Przykłady / примеры</b> — wysokość liczona <b>od dolnej bazy w górę</b> (od dołu szafki: dół boku = X=DX, góra = X=0 — jak w programach maszyny; fronty: dół = X=0)<pre>W 600                → pod wiązanie na 600: kołki + konfirmaty
 W 600 widoczny       → tylko kołki
 W                    → wiązanie w czole F3+F2 (kołki Ø8×28, konf. Ø4,8×41)
 W lewa / W prawa     → tylko jedna strona
-p32 300              → półka: 3 otw. Ø5 co 32 (środek na 300)
+p32 300              → półka: 3 otw. Ø5 co 32 (środek na 300), 50 i DY−50 od krawędzi
 p64 300 650          → dwie półki, 3 otw. co 64
 zawiasy 100 1500     → płytki (37, ±16)
 zawias front 100 600 → puszki Ø35 + INSERTA Ø8
