@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="XXL">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1e2630">
+<title>XXL – просмотр Xilog</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#1e2630;color:#e8edf2;overflow:hidden}
+button,select,input,textarea{font:inherit;color:inherit}
+button{background:#2f3b48;border:1px solid #435263;border-radius:8px;padding:7px 10px;cursor:pointer;white-space:nowrap}
+button:active,button.on{background:#3d7bd6;border-color:#3d7bd6}
+input,textarea{-webkit-user-select:text;user-select:text}
+input,select,textarea{font-size:16px;background:#11171d;border:1px solid #435263;border-radius:6px;padding:6px}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#top{display:flex;gap:6px;padding:6px;padding-top:max(6px,env(safe-area-inset-top));padding-left:max(6px,env(safe-area-inset-left));padding-right:max(6px,env(safe-area-inset-right));overflow-x:auto;scrollbar-width:none;align-items:center;background:#161d24;border-bottom:1px solid #2c3743}
+#title{flex:1 0 140px;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.85}
+#main{flex:1;display:flex;min-height:0}
+#view{position:relative;flex:1;min-width:0;min-height:0;touch-action:none;background:#0d1217}
+#cv{position:absolute;inset:0;width:100%;height:100%}
+#hud{position:absolute;left:6px;bottom:6px;font-size:12px;background:#000a;padding:3px 7px;border-radius:6px;pointer-events:none}
+#zbtn{position:absolute;right:6px;top:6px;display:flex;flex-direction:column;gap:6px}
+#zbtn button{width:42px;height:42px;font-size:20px;padding:0}
+#side{width:440px;display:flex;flex-direction:column;border-left:1px solid #2c3743;background:#161d24;min-height:0}
+#tabs{display:flex;gap:4px;padding:6px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+#tabs button{flex:1 0 auto}
+#side,#view,#main{min-width:0}
+#pane{position:relative;flex:1;overflow:auto;min-height:0;padding:0 6px 8px}
+#steprow{display:flex;gap:6px;align-items:center;padding:4px 6px;padding-bottom:max(4px,env(safe-area-inset-bottom));border-top:1px solid #2c3743;font-size:12px}
+#steprow input{flex:1}
+@media (max-width:800px){
+ #main{flex-direction:column}
+ #side{width:auto;height:46%;border-left:0;border-top:1px solid #2c3743}
+ #view{flex:1}
+}
+.ln{display:flex;gap:6px;font-family:Consolas,monospace;font-size:13px;padding:5px 4px;border-bottom:1px solid #222c36;cursor:pointer;word-break:break-all}
+.ln .no{opacity:.4;min-width:28px;text-align:right}
+.ln.sel{background:#29466e}
+.ln.warn .no{color:#ffb347;opacity:1}
+.ln.err .no{color:#ff6b6b;opacity:1}
+.c-H{color:#9ecbff}.c-XBO,.c-BOANGO{color:#7ee787}.c-XG0{color:#ffa657}.c-XL2P,.c-XAR2,.c-XA2P,.c-XAR{color:#f2cc60}
+.c-MSG{color:#ff7b72;font-weight:bold}.c-PAR,.c-L{color:#d2a8ff}.c-com{color:#8b949e}.c-XN{color:#79c0ff}
+.cm{color:#8b949e}
+.form{background:#1d2731;border:1px solid #3d7bd6;border-radius:8px;padding:8px;margin:6px 0}
+.form .row{display:flex;gap:6px;align-items:center;margin:4px 0}
+.form .row label{min-width:34px;font-family:monospace;font-weight:bold}
+.form .row input{flex:1;min-width:0}
+.form .row .ev{min-width:70px;font-size:12px;opacity:.7;text-align:right}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chk{padding:6px;border-bottom:1px solid #222c36;font-size:14px;cursor:pointer}
+.chk b{color:#ffb347}.chk.e b{color:#ff6b6b}.chk.ok b{color:#7ee787}
+.files .dir{font-weight:bold;margin-top:10px;padding:6px 4px;background:#222c36;border-radius:6px;cursor:pointer}
+.files .f{padding:7px 10px;border-bottom:1px solid #222c36;cursor:pointer;font-size:14px}
+.files .f:active{background:#29466e}
+textarea#full{width:100%;height:60vh;font-family:Consolas,monospace;font-size:13px;white-space:pre}
+.kv{display:grid;grid-template-columns:auto 1fr auto;gap:6px;align-items:center;margin:6px 0}
+.small{font-size:12px;opacity:.7}
+h4{margin:10px 0 4px}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#3d7bd6;padding:8px 14px;border-radius:8px;display:none;z-index:9}
+.legend span{display:inline-block;margin-right:10px;font-size:12px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:middle;margin-right:4px}
+</style>
+</head>
+<body>
+<div id="app">
+ <div id="top">
+  <button id="bOpen" title="Открыть файл .xxl">📂</button>
+  <button id="bSrv" title="Файлы заказов с компьютера" style="display:none">📁 Заказы</button>
+  <button id="bSave" title="Сохранить">💾</button>
+  <button id="bUndo" title="Отменить">↶</button>
+  <select id="sSide" title="Сторона"><option value="all">A+B</option></select>
+  <button id="bMeas" title="Измерить: 2 касания">📏</button>
+  <button id="bAdd" title="Добавить отверстие касанием">＋⌀</button>
+  <span id="title">нет файла</span>
+  <input type="file" id="fi" multiple style="display:none">
+ </div>
+ <div id="main">
+  <div id="view">
+   <canvas id="cv"></canvas>
+   <div id="zbtn"><button id="zIn">＋</button><button id="zOut">－</button><button id="zFit">⤢</button><button id="zFlip" title="Перевернуть Y">⇅</button></div>
+   <div id="hud"></div>
+  </div>
+  <div id="side">
+   <div id="tabs">
+    <button data-t="code" class="on">Код</button>
+    <button data-t="par">Размеры</button>
+    <button data-t="chk">Проверка</button>
+    <button data-t="txt">Текст</button>
+    <button data-t="files" id="tFiles" style="display:none">Файлы</button>
+    <button data-t="set">⚙</button>
+   </div>
+   <div id="pane"></div>
+   <div id="steprow"><span>Шаг</span><input type="range" id="step" min="0" max="0" value="0"><span id="stepv"></span><button id="play">▶</button></div>
+  </div>
+ </div>
+</div>
+<div id="toast"></div>
+<script>
+'use strict';
+// ====== ИНСТРУМЕНТЫ (def.tlg 01.2022, cnc/porownanie_narzedzi.md) ======
+const TOOLS_DEFAULT={82:3.4,83:3.4,101:12,102:11.35,103:18.2,104:15.6,105:25.4,106:16,107:34,108:42,109:23,110:52,111:10,112:50.8,113:36,114:80,115:6,116:30,117:125,118:6,182:3.3};
+const FIELD_DEFAULT={x:3050,y:1248};
+let SET=Object.assign({tools:TOOLS_DEFAULT,f2right:true,flipY:false,field:FIELD_DEFAULT},JSON.parse(localStorage.getItem('xxl_set')||'{}'));
+function saveSet(){localStorage.setItem('xxl_set',JSON.stringify(SET))}
+
+// ====== СОСТОЯНИЕ ======
+let doc={name:'',path:null,lines:[],crlf:true,cp1250:false};
+let model=null, sel=-1, undo=[], tab='code', mode='', meas=[], stepMax=0, step=Infinity, sideF='all';
+let view={s:1,ox:0,oy:0}, W=0,H=0, dpr=1;
+const $=id=>document.getElementById(id);
+const cv=$('cv'), ctx=cv.getContext('2d');
+let SERVER=false;
+
+// ====== РАЗБОР СТРОКИ ======
+function splitComment(s){let q=false;for(let i=0;i<s.length;i++){const c=s[i];if(c=='"')q=!q;else if(c==';'&&!q)return [s.slice(0,i),s.slice(i+1)]}return [s,null]}
+function tokenize(s){const t=[];let cur='',q=false;for(const c of s){if(c=='"'){q=!q;cur+=c}else if(/\s/.test(c)&&!q){if(cur)t.push(cur);cur=''}else cur+=c}if(cur)t.push(cur);
+ const out=[];for(const k of t){if(k.startsWith('=')&&out.length&&!out[out.length-1].includes('='))out[out.length-1]+=k;else if(k=='='&&out.length){out[out.length-1]+='='}else if(out.length&&out[out.length-1].endsWith('=')&&!k.includes('='))out[out.length-1]+=k;else out.push(k)}return out}
+function parseLine(raw){
+ const tr=raw.trim();
+ if(!tr)return {raw,cmd:'',params:[],comment:null};
+ if(tr.startsWith(';'))return {raw,cmd:';',params:[],comment:tr.slice(1)};
+ const [code,com]=splitComment(raw);const tk=tokenize(code.trim());
+ const cmd=(tk.shift()||'').toUpperCase();
+ const params=tk.map(t=>{const i=t.indexOf('=');if(i>0&&!t.startsWith('"'))return {k:t.slice(0,i),v:t.slice(i+1)};return {flag:t}});
+ return {raw,cmd,params,comment:com};
+}
+function buildLine(L){
+ if(L.cmd==';')return ';'+(L.comment||'');
+ if(!L.cmd)return '';
+ let s=L.cmd+' '+L.params.map(p=>p.flag!==undefined?p.flag:(L.cmd=='PAR'&&p===L.params[0]?p.k+' ='+p.v:p.k+'='+p.v)).join(' ');
+ if(L.comment!=null)s+=' ;'+L.comment;return s;
+}
+function P(L,k){const p=L.params.find(p=>p.k===k);return p?p.v:undefined}
+function setP(L,k,v){let p=L.params.find(p=>p.k===k);if(v===''||v==null){L.params=L.params.filter(q=>q.k!==k);return}if(p)p.v=v;else L.params.push({k,v})}
+
+// ====== ВЫРАЖЕНИЯ (DX/2, DY-32, (DX-C3)/2+C3, sqrt…) ======
+const FN={SQRT:Math.sqrt,SIN:x=>Math.sin(x*Math.PI/180),COS:x=>Math.cos(x*Math.PI/180),TAN:x=>Math.tan(x*Math.PI/180),ATAN:x=>Math.atan(x)*180/Math.PI,ABS:Math.abs,INT:Math.trunc,ROUND:Math.round,SQR:x=>x*x};
+function evalExpr(src,vars){
+ src=String(src).replace(/#$/,'').trim();let i=0;
+ const err=m=>{throw new Error(m+' в «'+src+'»')};
+ const ws=()=>{while(src[i]==' ')i++};
+ function prim(){ws();const c=src[i];
+  if(c=='('){i++;const v=add();ws();if(src[i]!=')')err('нет )');i++;return v}
+  if(c=='-'){i++;return -prim()} if(c=='+'){i++;return prim()}
+  let m=/^(\d+\.?\d*|\.\d+)(e[+-]?\d+)?/i.exec(src.slice(i));if(m){i+=m[0].length;return parseFloat(m[0])}
+  m=/^[A-Za-z_][A-Za-z_0-9]*/.exec(src.slice(i));
+  if(m){i+=m[0].length;const n=m[0];ws();
+   if(src[i]=='('&&FN[n.toUpperCase()]){i++;const v=add();ws();i++;return FN[n.toUpperCase()](v)}
+   if(n in vars)return vars[n];const u=n.toUpperCase();for(const k in vars)if(k.toUpperCase()==u)return vars[k];
+   if(u=='PI')return Math.PI;err('неизвестная переменная '+n)}
+  err('ошибка')}
+ function pow(){let v=prim();ws();while(src[i]=='^'){i++;v=Math.pow(v,prim())}return v}
+ function mul(){let v=pow();for(;;){ws();const c=src[i];if(c=='*'){i++;v*=pow()}else if(c=='/'){i++;v/=pow()}else return v}}
+ function add(){let v=mul();for(;;){ws();const c=src[i];if(c=='+'){i++;v+=mul()}else if(c=='-'){i++;v-=mul()}else return v}}
+ const v=add();ws();if(i<src.length)err('лишнее');return v;
+}
+
+// ====== ПОСТРОЕНИЕ МОДЕЛИ ======
+function toolD(t){return SET.tools[t]||SET.tools[String(t)]||0}
+function build(){
+ const vars={DX:0,DY:0,DZ:18};const els=[];const issues=[];let side=0,sides=1;let pen=null,cur={x:0,y:0,z:0},lastF=1;
+ const m={dx:0,dy:0,dz:18,vars,els,issues,pars:[],lvars:[],hasXN:false,origin:'',ops:0};
+ const ev=(L,k,def,li)=>{const v=P(L,k);if(v===undefined)return def;try{return evalExpr(v,vars)}catch(e){issues.push({li,lvl:'e',t:e.message});return def}};
+ const endPen=()=>{if(pen&&pen.segs.length)els.push(pen);pen=null};
+ doc.lines.forEach((L,li)=>{
+  const c=L.cmd;
+  if(c=='H'){m.dx=vars.DX=ev(L,'DX',0,li);m.dy=vars.DY=ev(L,'DY',0,li);m.dz=vars.DZ=ev(L,'DZ',18,li);m.origin=(L.params.find(p=>p.flag&&/^-/.test(p.flag))||{}).flag||'';return}
+  if(c=='PAR'){const p=L.params.find(p=>p.k);if(p){try{vars[p.k]=evalExpr(p.v,vars)}catch(e){issues.push({li,lvl:'e',t:e.message})}m.pars.push({li,k:p.k,v:p.v,desc:(L.params.find(q=>q.flag)||{}).flag})}return}
+  if(c=='L'){const p=L.params.find(p=>p.k);if(p){try{vars[p.k]=evalExpr(p.v,vars);m.lvars.push({li,k:p.k,v:p.v,val:vars[p.k]})}catch(e){issues.push({li,lvl:'e',t:e.message})}}return}
+  if(c=='MSG'||c=='XMSG'){endPen();if(/SBY\s*=/.test(L.raw)){side++;sides=side+1}return}
+  if(c=='XBO'||c=='BOANGO'){
+   endPen();m.ops++;
+   const F=Math.round(ev(L,'F',lastF,li));if(P(L,'F')!==undefined)lastF=F;
+   const X=ev(L,'X',0,li),Y=ev(L,'Y',0,li),Z=ev(L,'Z',0,li),D=ev(L,'D',0,li);
+   let R=P(L,'R');const hasR=R!==undefined;R=hasR?Math.max(1,Math.round(ev(L,'R',1,li))):1;
+   const sx=ev(L,'x',0,li),sy=ev(L,'y',0,li);const N=(P(L,'N')||'"P"').replace(/"/g,'');
+   if(!hasR)issues.push({li,lvl:'w',t:'нет R=1 — Xilog повторит прошлый R'});
+   for(let r=0;r<R;r++){els.push({type:'hole',li,side,F,x:X+r*sx,y:Y+r*sy,z:Z,d:D,n:N,ang:c=='BOANGO'?ev(L,'J',0,li):null})}
+   return}
+  if(c=='XG0'){endPen();m.ops++;
+   const T=Math.round(ev(L,'T',0,li));const F=Math.round(ev(L,'F',lastF,li));if(P(L,'F')===undefined)issues.push({li,lvl:'w',t:'XG0 без F=1'});else lastF=F;
+   cur={x:ev(L,'X',0,li),y:ev(L,'Y',0,li),z:ev(L,'Z',0,li)};
+   const C=Math.round(ev(L,'C',0,li));const d=toolD(T);if(!d)issues.push({li,lvl:'w',t:'инструмент T'+T+' не в таблице (⚙)'});
+   pen={type:'path',li,side,F,T,C,d,start:{...cur},segs:[]};return}
+  if(c=='XL2P'||c=='XAR2'||c=='XAR'||c=='XA2P'){
+   if(!pen){issues.push({li,lvl:'e',t:c+' без XG0'});return}
+   const p0={...cur};const p1={x:ev(L,'X',cur.x,li),y:ev(L,'Y',cur.y,li),z:ev(L,'Z',cur.z,li)};
+   let pts;
+   if(c=='XL2P')pts=[p0,p1];
+   else if(c=='XA2P'){const cx=ev(L,'I',0,li),cy=ev(L,'J',0,li),G=Math.round(ev(L,'G',2,li));pts=arcPts(p0,p1,{x:cx,y:cy},G==2)}
+   else{const r=ev(L,'r',0,li),G=Math.round(ev(L,'G',2,li));const cen=arcCenter(p0,p1,r,G,c);if(!cen){issues.push({li,lvl:'e',t:'радиус дуги меньше половины хорды'});pts=[p0,p1]}else pts=arcPts(p0,p1,cen,G==2)}
+   pen.segs.push({li,pts,z:p1.z});cur=p1;return}
+  if(c=='XGOUT'||c=='XGOUTK'){endPen();return}
+  if(c=='XN'){endPen();m.hasXN=true;return}
+ });
+ endPen();
+ m.sides=sides;
+ // проверки
+ if(!m.dx||!m.dy)issues.push({li:0,lvl:'e',t:'нет строки H DX= DY= DZ='});
+ if(m.dx>SET.field.x||m.dy>SET.field.y)issues.push({li:0,lvl:'w',t:`деталь ${m.dx}×${m.dy} больше поля ${SET.field.x}×${SET.field.y}`});
+ if(!m.hasXN)issues.push({li:doc.lines.length-1,lvl:'w',t:'нет XN в конце (отъезд)'});
+ for(const e of els){
+  if(e.type=='hole'){
+   if(e.F==1){if(e.x<-0.01||e.y<-0.01||e.x>m.dx+0.01||e.y>m.dy+0.01)issues.push({li:e.li,lvl:'e',t:`отверстие вне детали (${f1(e.x)}; ${f1(e.y)})`});
+    if(e.n=='P'&&e.z>=m.dz)issues.push({li:e.li,lvl:'w',t:`глубина ${f1(e.z)} ≥ толщины, а N="P" (не сквозное)`});
+    if(e.x-e.d/2<0||e.y-e.d/2<0||e.x+e.d/2>m.dx||e.y+e.d/2>m.dy)if(!(e.x<0||e.y<0||e.x>m.dx||e.y>m.dy))issues.push({li:e.li,lvl:'w',t:'отверстие задевает край'});}
+   else{const t=(e.F==2||e.F==3)?e.x:e.y;if(t<0||t>m.dz)issues.push({li:e.li,lvl:'e',t:`отверстие в торце вне толщины (${f1(t)})`})}
+  }
+  if(e.type=='path'){for(const s of e.segs)if(s.z>m.dz+0.5)issues.push({li:s.li,lvl:'w',t:`фреза глубже толщины: Z=${f1(s.z)}`})}
+ }
+ const seen=new Set();m.issues=issues.filter(i=>{const k=i.li+i.t;if(seen.has(k))return false;seen.add(k);return true}).sort((a,b)=>a.li-b.li);
+ return m;
+}
+function arcCenter(p0,p1,r,G,cmd){
+ const dx=p1.x-p0.x,dy=p1.y-p0.y,L=Math.hypot(dx,dy);const R=Math.abs(r);if(L/2>R+1e-6||L<1e-9)return null;
+ const h=Math.sqrt(Math.max(0,R*R-L*L/4));const mx=(p0.x+p1.x)/2,my=(p0.y+p1.y)/2;const nx=-dy/L,ny=dx/L;// влево от хорды
+ let left;
+ if(cmd=='XAR')left=r>0;               // XAR: r>0 — центр слева от хорды
+ else{const ccw=G==3;left=ccw;if(r<0)left=!left}  // XAR2: r>0 — короткая дуга
+ return left?{x:mx+nx*h,y:my+ny*h}:{x:mx-nx*h,y:my-ny*h};
+}
+function arcPts(p0,p1,c,cw){
+ const R=Math.hypot(p0.x-c.x,p0.y-c.y);let a0=Math.atan2(p0.y-c.y,p0.x-c.x),a1=Math.atan2(p1.y-c.y,p1.x-c.x);
+ let da=a1-a0;if(cw){while(da>=0)da-=2*Math.PI}else{while(da<=0)da+=2*Math.PI}
+ if(Math.hypot(p1.x-p0.x,p1.y-p0.y)<1e-6)da=cw?-2*Math.PI:2*Math.PI;
+ const n=Math.max(8,Math.ceil(Math.abs(da)*R/2));const pts=[];
+ for(let i=0;i<=n;i++){const a=a0+da*i/n;pts.push({x:c.x+R*Math.cos(a),y:c.y+R*Math.sin(a),z:p0.z+(p1.z-p0.z)*i/n})}return pts;
+}
+// смещение траектории на радиус (C=1 справа, C=2 слева по ходу)
+function offsetPath(pts,r,C){
+ if(!C||C>2||!r)return pts;const sgn=C==1?-1:1;const out=[];
+ const segN=[];for(let i=0;i<pts.length-1;i++){const dx=pts[i+1].x-pts[i].x,dy=pts[i+1].y-pts[i].y,L=Math.hypot(dx,dy);segN.push(L<1e-9?null:{x:-dy/L*sgn,y:dx/L*sgn})}
+ let prev=null;
+ for(let i=0;i<pts.length-1;i++){const n=segN[i];if(!n)continue;const a=pts[i],b=pts[i+1];
+  if(prev){const a0=Math.atan2(prev.y,prev.x),a1=Math.atan2(n.y,n.x);let d=a1-a0;while(d>Math.PI)d-=2*Math.PI;while(d<-Math.PI)d+=2*Math.PI;
+   if(d*sgn<0){}else{const k=Math.ceil(Math.abs(d)/0.2);for(let j=1;j<k;j++){const t=a0+d*j/k;out.push({x:a.x+r*Math.cos(t),y:a.y+r*Math.sin(t)})}}}
+  out.push({x:a.x+n.x*r,y:a.y+n.y*r});out.push({x:b.x+n.x*r,y:b.y+n.y*r});prev=n}
+ return out.length?out:pts;
+}
+const f1=v=>(Math.round(v*100)/100).toString();
+
+// ====== ГРАНИ → КООРДИНАТЫ ЧЕРТЕЖА ======
+function gap(){return Math.max(25,model.dz*1.5)}
+function faceMap(F,a,b){const g=gap(),dx=model.dx,dy=model.dy;
+ if(F==4)return {x:a,y:-g-b};                 // перед (Y=0)
+ if(F==5)return {x:a,y:dy+g+b};               // зад (Y=DY)
+ const right=(F==2)==SET.f2right;
+ if(F==2||F==3)return right?{x:dx+g+a,y:b}:{x:-g-a,y:b};
+ return {x:a,y:b}}
+function holeDepthLine(e){const dx=model.dx,dy=model.dy;
+ if(e.F==4)return [{x:e.x,y:0},{x:e.x,y:e.z}];
+ if(e.F==5)return [{x:e.x,y:dy},{x:e.x,y:dy-e.z}];
+ const right=(e.F==2)==SET.f2right;
+ if(e.F==2||e.F==3)return right?[{x:dx,y:e.y},{x:dx-e.z,y:e.y}]:[{x:0,y:e.y},{x:e.z,y:e.y}];
+ return null}
+
+// ====== РИСОВАНИЕ ======
+const W2S=p=>({x:view.ox+p.x*view.s,y:view.oy+(SET.flipY?1:-1)*p.y*view.s});
+const S2W=(x,y)=>({x:(x-view.ox)/view.s,y:(y-view.oy)/((SET.flipY?1:-1)*view.s)});
+function visible(e){return (sideF=='all'||String(e.side)==sideF)&&e.li<=step}
+function fit(){if(!model)return;const g=gap()+model.dz+10;let x0=-g,y0=-g,x1=model.dx+g,y1=model.dy+g;
+ for(const e of model.els)if(e.type=='path')for(const s of e.segs)for(const p of s.pts){x0=Math.min(x0,p.x-e.d);x1=Math.max(x1,p.x+e.d);y0=Math.min(y0,p.y-e.d);y1=Math.max(y1,p.y+e.d)}
+ const s=Math.min(W/(x1-x0),H/(y1-y0))*0.92;view.s=s;view.ox=W/2-(x0+x1)/2*s;view.oy=H/2+(SET.flipY?-1:1)*(y0+y1)/2*s;draw()}
+function resize(){const r=$('view').getBoundingClientRect();dpr=window.devicePixelRatio||1;W=r.width;H=r.height;cv.width=W*dpr;cv.height=H*dpr;draw()}
+function holeColor(e){if(e.n=='L'||e.z>=model.dz)return '#ff5d5d';return {5:'#59d38c',8:'#58a6ff',7:'#ff9f5d',35:'#e3b341',4.8:'#d2a8ff',25:'#ffd866'}[e.d]||'#7fd6e8'}
+function draw(){
+ ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+ if(!model){ctx.fillStyle='#8b949e';ctx.font='16px sans-serif';ctx.textAlign='center';ctx.fillText('Откройте файл .xxl  📂',W/2,H/2);return}
+ const s=view.s,dx=model.dx,dy=model.dy,dz=model.dz,g=gap();
+ // сетка
+ const stepG=[10,50,100,500].find(v=>v*s>40)||1000;ctx.strokeStyle='#1a232c';ctx.lineWidth=1;ctx.beginPath();
+ const a=S2W(0,0),b=S2W(W,H);for(let x=Math.floor(Math.min(a.x,b.x)/stepG)*stepG;x<Math.max(a.x,b.x);x+=stepG){const p=W2S({x,y:0});ctx.moveTo(p.x,0);ctx.lineTo(p.x,H)}
+ for(let y=Math.floor(Math.min(a.y,b.y)/stepG)*stepG;y<Math.max(a.y,b.y);y+=stepG){const p=W2S({x:0,y});ctx.moveTo(0,p.y);ctx.lineTo(W,p.y)}ctx.stroke();
+ // деталь и торцы
+ const rect=(x,y,w,h,fill,stroke)=>{const p=W2S({x,y}),q=W2S({x:x+w,y:y+h});ctx.fillStyle=fill;ctx.strokeStyle=stroke;ctx.lineWidth=1.5;const rx=Math.min(p.x,q.x),ry=Math.min(p.y,q.y);ctx.fillRect(rx,ry,Math.abs(q.x-p.x),Math.abs(q.y-p.y));ctx.strokeRect(rx,ry,Math.abs(q.x-p.x),Math.abs(q.y-p.y))};
+ rect(0,0,dx,dy,'#d9c7a6','#f0e6d2');
+ rect(0,-g-dz,dx,dz,'#b9a684','#665');rect(0,dy+g,dx,dz,'#b9a684','#665');
+ const fx=SET.f2right;rect(dx+g,0,dz,dy,'#b9a684','#665');rect(-g-dz,0,dz,dy,'#b9a684','#665');
+ ctx.fillStyle='#9aa7b4';ctx.font='12px sans-serif';ctx.textAlign='center';
+ const lab=(t,p)=>{const q=W2S(p);ctx.fillText(t,q.x,q.y)};
+ lab('F4 перед',{x:dx/2,y:-g-dz-6/s-8/s});lab('F5 зад',{x:dx/2,y:dy+g+dz+14/s});
+ lab(fx?'F2':'F3',{x:dx+g+dz/2,y:dy+12/s});lab(fx?'F3':'F2',{x:-g-dz/2,y:dy+12/s});
+ // ноль
+ const o=W2S({x:0,y:0});ctx.fillStyle='#ff5d5d';ctx.beginPath();ctx.arc(o.x,o.y,4,0,7);ctx.fill();ctx.fillText('0 '+(model.origin||''),o.x-14,o.y+(SET.flipY?-6:14));
+ ctx.fillStyle='#e8edf2';ctx.font='bold 13px sans-serif';lab(`${f1(dx)} × ${f1(dy)} × ${f1(dz)}`,{x:dx/2,y:dy/2});
+ // фрезеровки
+ for(const e of model.els){if(e.type!='path'||!visible(e))continue;
+  for(const sg of e.segs){if(sg.li>step)continue;const through=sg.z>=dz;const off=offsetPath(sg.pts,e.d/2,e.C);
+   ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=sg.li==sel||e.li==sel?'rgba(80,160,255,.75)':through?'rgba(220,60,50,.6)':'rgba(255,150,40,.45)';ctx.lineWidth=Math.max(2,e.d*s);
+   ctx.beginPath();off.forEach((p,i)=>{const q=W2S(faceMap(e.F,p.x,p.y));i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.stroke();
+   ctx.strokeStyle='#fff8';ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.beginPath();sg.pts.forEach((p,i)=>{const q=W2S(faceMap(e.F,p.x,p.y));i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y)});ctx.stroke();ctx.setLineDash([]);
+  }
+  const st=W2S(faceMap(e.F,e.start.x,e.start.y));ctx.fillStyle='#ffa657';ctx.beginPath();ctx.arc(st.x,st.y,4,0,7);ctx.fill();
+  if(s>0.4){ctx.fillStyle='#ffa657';ctx.font='11px sans-serif';ctx.textAlign='left';ctx.fillText('T'+e.T+(e.C?' C'+e.C:''),st.x+6,st.y-6)}
+ }
+ // отверстия
+ for(const e of model.els){if(e.type!='hole'||!visible(e))continue;
+  const p=W2S(faceMap(e.F,e.x,e.y));const r=Math.max(2.5,e.d/2*s);const isSel=e.li==sel;
+  if(e.F!=1){const dl=holeDepthLine(e);if(dl){const a=W2S(dl[0]),b=W2S(dl[1]);ctx.strokeStyle=holeColor(e);ctx.lineWidth=Math.max(2,e.d*s);ctx.globalAlpha=.55;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.globalAlpha=1}}
+  ctx.fillStyle=holeColor(e);ctx.beginPath();ctx.arc(p.x,p.y,r,0,7);ctx.fill();
+  ctx.strokeStyle=isSel?'#fff':'#0008';ctx.lineWidth=isSel?3:1;ctx.stroke();
+  if(e.n=='L'||e.z>=dz){ctx.strokeStyle='#000';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(p.x-r*.7,p.y-r*.7);ctx.lineTo(p.x+r*.7,p.y+r*.7);ctx.moveTo(p.x+r*.7,p.y-r*.7);ctx.lineTo(p.x-r*.7,p.y+r*.7);ctx.stroke()}
+  if(s>1.2){ctx.fillStyle='#e8edf2';ctx.font='11px sans-serif';ctx.textAlign='left';ctx.fillText('⌀'+f1(e.d)+'×'+f1(e.z),p.x+r+3,p.y-3)}
+ }
+ // размеры выбранного
+ if(sel>=0){const hs=model.els.filter(e=>e.li==sel&&e.type=='hole'&&e.F==1&&visible(e));for(const e of hs)dims(e.x,e.y)}
+ // измерение
+ if(meas.length){ctx.strokeStyle='#ff0';ctx.fillStyle='#ff0';ctx.lineWidth=2;const q=meas.map(W2S);ctx.beginPath();q.forEach((p,i)=>{i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);});ctx.stroke();q.forEach(p=>{ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill()});
+  if(meas.length==2){const [a,b]=meas;ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.fillText(`${f1(Math.hypot(b.x-a.x,b.y-a.y))}  (Δx ${f1(b.x-a.x)}  Δy ${f1(b.y-a.y)})`,(q[0].x+q[1].x)/2,(q[0].y+q[1].y)/2-10)}}
+}
+function dims(x,y){ctx.strokeStyle='#fffb';ctx.fillStyle='#fff';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.font='bold 12px sans-serif';ctx.textAlign='center';
+ const p=W2S({x,y}),a=W2S({x:0,y}),b=W2S({x,y:0}),c=W2S({x:model.dx,y}),d=W2S({x,y:model.dy});
+ ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(c.x,c.y);ctx.moveTo(b.x,b.y);ctx.lineTo(d.x,d.y);ctx.stroke();ctx.setLineDash([]);
+ const bg=(t,X,Y)=>{const w=ctx.measureText(t).width+6;ctx.fillStyle='#000c';ctx.fillRect(X-w/2,Y-9,w,16);ctx.fillStyle='#fff';ctx.fillText(t,X,Y+4)};
+ bg('X '+f1(x),(a.x+p.x)/2,p.y-12);bg(f1(model.dx-x),(c.x+p.x)/2,p.y-12);bg('Y '+f1(y),p.x+30,(b.y+p.y)/2);bg(f1(model.dy-y),p.x+30,(d.y+p.y)/2)}
+
+// ====== ВЫБОР КАСАНИЕМ ======
+function pick(sx,sy){if(!model)return -1;let best=-1,bd=18;
+ for(const e of model.els){if(!visible(e))continue;
+  if(e.type=='hole'){const p=W2S(faceMap(e.F,e.x,e.y));const d=Math.hypot(p.x-sx,p.y-sy)-Math.max(0,e.d/2*view.s);if(d<bd){bd=d;best=e.li}}
+  else for(const sg of e.segs){if(sg.li>step)continue;const pts=sg.pts.map(p=>W2S(faceMap(e.F,p.x,p.y)));for(let i=0;i<pts.length-1;i++){const d=segDist(sx,sy,pts[i],pts[i+1])-e.d/2*view.s;if(d<bd){bd=d;best=sg.li}}}}
+ return best}
+function segDist(x,y,a,b){const dx=b.x-a.x,dy=b.y-a.y,L=dx*dx+dy*dy;let t=L?((x-a.x)*dx+(y-a.y)*dy)/L:0;t=Math.max(0,Math.min(1,t));return Math.hypot(x-a.x-t*dx,y-a.y-t*dy)}
+
+// ====== ЖЕСТЫ: перетаскивание, щипок, колесо ======
+const ptrs=new Map();let pinch=null,moved=false,downAt=null,lastTap=0;
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.offsetX,y:e.offsetY});moved=false;downAt={x:e.offsetX,y:e.offsetY};
+ if(ptrs.size==2){const [p,q]=[...ptrs.values()];pinch={d:Math.hypot(p.x-q.x,p.y-q.y),s:view.s,ox:view.ox,oy:view.oy,cx:(p.x+q.x)/2,cy:(p.y+q.y)/2}}});
+cv.addEventListener('pointermove',e=>{const old=ptrs.get(e.pointerId);
+ if(model){const w=S2W(e.offsetX,e.offsetY);$('hud').textContent=`X ${f1(w.x)}  Y ${f1(w.y)}  · ${view.s.toFixed(2)} px/мм`}
+ if(!old)return;const cur={x:e.offsetX,y:e.offsetY};ptrs.set(e.pointerId,cur);
+ if(Math.hypot(cur.x-downAt.x,cur.y-downAt.y)>6)moved=true;
+ if(ptrs.size==2&&pinch){const [p,q]=[...ptrs.values()];const d=Math.hypot(p.x-q.x,p.y-q.y);const k=d/pinch.d;const cx=(p.x+q.x)/2,cy=(p.y+q.y)/2;
+  view.s=pinch.s*k;view.ox=cx-(pinch.cx-pinch.ox)*k;view.oy=cy-(pinch.cy-pinch.oy)*k;draw()}
+ else if(ptrs.size==1){view.ox+=cur.x-old.x;view.oy+=cur.y-old.y;draw()}});
+const up=e=>{const wasPinch=ptrs.size>1;ptrs.delete(e.pointerId);if(ptrs.size<2)pinch=null;
+ if(!moved&&!wasPinch&&ptrs.size==0&&e.type=='pointerup'){const now=Date.now();
+  if(now-lastTap<300&&!mode){fit();lastTap=0;return}lastTap=now;tapAt(e.offsetX,e.offsetY)}};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+cv.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.offsetX,e.offsetY,Math.pow(1.0015,-e.deltaY))},{passive:false});
+function zoomAt(x,y,k){view.ox=x-(x-view.ox)*k;view.oy=y-(y-view.oy)*k;view.s*=k;draw()}
+function snap(v){return Math.round(v*2)/2}
+function tapAt(x,y){if(!model)return;const w=S2W(x,y);
+ if(mode=='meas'){if(meas.length>=2)meas=[];meas.push({x:snap(w.x),y:snap(w.y)});draw();return}
+ if(mode=='add'){const li=sel>=0?sel+1:lastOpIndex();pushUndo();doc.lines.splice(li,0,parseLine(`XBO X=${snap(w.x)} Y=${snap(w.y)} Z=12 R=1 D=5 N="P" F=1`));sel=li;refresh();toast('Добавлено XBO — поправьте D, Z');return}
+ const li=pick(x,y);select(li,false)}
+function lastOpIndex(){for(let i=doc.lines.length-1;i>=0;i--)if(doc.lines[i].cmd=='XN')return i;return doc.lines.length}
+
+// ====== ПАНЕЛЬ ======
+function select(li,center){sel=li;draw();if(tab!='code')setTab('code');else renderPane();
+ if(li>=0){const el=document.querySelector(`.ln[data-li="${li}"]`);if(el){const pn=$('pane');pn.scrollTop=el.offsetTop-pn.clientHeight/3}
+  if(center){const e=model.els.find(e=>e.li==li||(e.segs&&e.segs.some(s=>s.li==li)));if(e){const p=e.type=='hole'?faceMap(e.F,e.x,e.y):faceMap(e.F,e.start.x,e.start.y);const q=W2S(p);view.ox+=W/2-q.x;view.oy+=H/2-q.y;draw()}}}}
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function setTab(t){tab=t;document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t==t));renderPane()}
+function renderPane(){const pane=$('pane');
+ if(tab=='files'){renderFiles();return}
+ if(tab=='set'){renderSet();return}
+ if(!model){pane.innerHTML='<p class="small">Откройте файл кнопкой 📂'+(SERVER?' или выберите во вкладке «Файлы»':'')+'.</p>'+help();return}
+ if(tab=='code'){
+  const iss={};for(const i of model.issues)iss[i.li]=(iss[i.li]=='e'?'e':i.lvl);
+  let h='';doc.lines.forEach((L,li)=>{
+   const cls=L.cmd==';'?'c-com':'c-'+L.cmd.replace(/[^A-Z0-9]/g,'');
+   const [code,com]=L.cmd==';'?['',L.raw]:splitComment(L.raw);
+   h+=`<div class="ln ${li==sel?'sel':''} ${iss[li]=='e'?'err':iss[li]=='w'?'warn':''}" data-li="${li}"><span class="no">${li+1}</span><span><span class="${cls}">${esc(code)}</span>${com!=null?`<span class="cm">${L.cmd==';'?'':';'}${esc(com)}</span>`:''}</span></div>`;
+   if(li==sel)h+=formHtml(L,li)});
+  pane.innerHTML=h;
+  pane.querySelectorAll('.ln').forEach(d=>d.onclick=()=>{const li=+d.dataset.li;select(li==sel?-1:li,true)});
+  bindForm();return}
+ if(tab=='par'){
+  let h=`<h4>Заготовка (H)</h4><div class="kv">`;const HL=doc.lines.find(L=>L.cmd=='H');
+  for(const k of ['DX','DY','DZ'])h+=`<b>${k}</b><input data-h="${k}" value="${esc(HL?P(HL,k)||'':'')}" inputmode="decimal"><span class="small">мм</span>`;
+  h+='</div>';
+  if(model.pars.length){h+='<h4>Параметры PAR (вводит оператор)</h4><div class="kv">';for(const p of model.pars)h+=`<b>${esc(p.k)}</b><input data-par="${p.li}" value="${esc(p.v)}"><span class="small">${esc((p.desc||'').replace(/"/g,''))}</span>`;h+='</div>'}
+  if(model.lvars.length){h+='<h4>Переменные L</h4><div class="kv">';for(const p of model.lvars)h+=`<b>${esc(p.k)}</b><span>${esc(p.v)}</span><span>= ${f1(p.val)}</span>`;h+='</div>'}
+  const holes=model.els.filter(e=>e.type=='hole'),paths=model.els.filter(e=>e.type=='path');
+  const byD={};holes.forEach(e=>{const k=`⌀${f1(e.d)} × ${f1(e.z)}${e.F!=1?' (F'+e.F+')':''}${e.n=='L'?' насквозь':''}`;byD[k]=(byD[k]||0)+1});
+  h+=`<h4>Сводка</h4><div class="small">Сторон: ${model.sides}${model.sides>1?' (пауза MSG SBY — переворот)':''}<br>Отверстий: ${holes.length}<br>${Object.entries(byD).map(([k,v])=>`&nbsp;&nbsp;${k}: ${v} шт.`).join('<br>')}<br>Фрезеровок: ${paths.length} (${[...new Set(paths.map(p=>'T'+p.T))].join(', ')})</div>`;
+  h+=`<div class="legend" style="margin-top:8px"><span><i style="background:#59d38c"></i>⌀5</span><span><i style="background:#58a6ff"></i>⌀8</span><span><i style="background:#ff9f5d"></i>⌀7</span><span><i style="background:#e3b341"></i>⌀35</span><span><i style="background:#d2a8ff"></i>⌀4,8</span><span><i style="background:#ff5d5d"></i>насквозь</span></div>`;
+  pane.innerHTML=h;
+  pane.querySelectorAll('[data-h]').forEach(i=>i.onchange=()=>{pushUndo();const HL=doc.lines.find(L=>L.cmd=='H');if(HL){setP(HL,i.dataset.h,i.value.trim());HL.raw=buildLine(HL)}refresh(true)});
+  pane.querySelectorAll('[data-par]').forEach(i=>i.onchange=()=>{pushUndo();const L=doc.lines[+i.dataset.par];const p=L.params.find(p=>p.k);p.v=i.value.trim();L.raw=buildLine(L);refresh()});
+  return}
+ if(tab=='chk'){
+  if(!model.issues.length){pane.innerHTML='<div class="chk ok"><b>✔</b> Замечаний нет</div>'+rulesHtml();return}
+  pane.innerHTML=model.issues.map(i=>`<div class="chk ${i.lvl}" data-li="${i.li}"><b>${i.lvl=='e'?'✖':'⚠'} стр. ${i.li+1}</b> ${esc(i.t)}</div>`).join('')+fixBtns()+rulesHtml();
+  pane.querySelectorAll('.chk[data-li]').forEach(d=>d.onclick=()=>select(+d.dataset.li,true));
+  const b=$('fixR');if(b)b.onclick=()=>{pushUndo();let n=0;for(const L of doc.lines){if((L.cmd=='XBO'||L.cmd=='BOANGO')&&P(L,'R')===undefined){const i=L.params.findIndex(p=>p.k=='Z');L.params.splice(i>=0?i+1:L.params.length,0,{k:'R',v:'1'});L.raw=buildLine(L);n++}
+   if(L.cmd=='XG0'&&P(L,'F')===undefined){L.params.push({k:'F',v:'1'});L.raw=buildLine(L);n++}}refresh();toast('Исправлено строк: '+n)};
+  return}
+ if(tab=='txt'){
+  pane.innerHTML=`<textarea id="full" spellcheck="false" autocapitalize="off" autocomplete="off">${esc(doc.lines.map(L=>L.raw).join('\n'))}</textarea><div class="btns"><button id="applyTxt">Применить текст</button></div>`;
+  $('applyTxt').onclick=()=>{pushUndo();loadText($('full').value,doc.name,doc.path,true);toast('Применено')};return}
+}
+function fixBtns(){return model.issues.some(i=>/R=1|F=1/.test(i.t))?'<div class="btns"><button id="fixR">Добавить R=1 / F=1 везде, где нет</button></div>':''}
+function rulesHtml(){return `<h4>Что проверяется</h4><div class="small">• XBO/BOANGO без R=1 (Xilog повторяет прошлый R)<br>• XG0 без F=1<br>• отверстия вне детали / у края, глубина ≥ толщины без N="L"<br>• торцевые отверстия вне толщины<br>• фреза глубже толщины, неизвестный инструмент<br>• деталь больше поля станка (${SET.field.x}×${SET.field.y})<br>• нет XN в конце, ошибки в формулах</div>`}
+const TEMPL={
+ 'Отверстие':'XBO X=32 Y=37 Z=12 R=1 D=5 N="P" F=1 ;',
+ 'Ряд отв.':'XBO X=32 Y=37 Z=12 R=3# x=32 D=5 N="P" F=1 ;',
+ 'Сквозное':'XBO X=32 Y=37 Z=DZ+8 R=1 D=7 N="L" F=1 ;',
+ 'Торец F4':'XBO X=32 Y=DZ/2 Z=28 R=1 D=8 N="P" F=4 ;',
+ 'Фреза':['XGIN Q=0 G=1','XG0 X=0 Y=0 Z=10 T=104 E=1 C=0 F=1','XL2P X=DX','XGOUT Q=0 G=1'],
+ 'Дуга':'XAR2 X=100 Y=100 r=50 G=2',
+ 'Пауза':'MSG "OBROC PLYTE - START" SBY=2',
+ 'Коммент':'; ',
+};
+function formHtml(L,li){
+ if(L.cmd==';'||!L.cmd)return `<div class="form"><div class="row"><input id="fRaw" value="${esc(L.raw)}"></div>${formBtns()}</div>`;
+ let h=`<div class="form"><div class="small">${esc(cmdHelp(L.cmd))}</div>`;
+ L.params.forEach((p,i)=>{if(p.flag!==undefined){h+=`<div class="row"><label>·</label><input data-fi="${i}" data-flag="1" value="${esc(p.flag)}"><span class="ev"></span></div>`;return}
+  let ev='';try{const v=evalExpr(p.v,model.vars);if(!/^-?[\d.]+#?$/.test(p.v))ev='= '+f1(v)}catch(e){ev='?'}
+  h+=`<div class="row"><label title="${esc(parHelp(p.k))}">${esc(p.k)}</label><input data-fi="${i}" value="${esc(p.v)}" autocapitalize="off"><span class="ev">${ev||esc(parHelp(p.k))}</span></div>`});
+ h+=`<div class="row"><label>;</label><input id="fCom" value="${esc(L.comment||'')}" placeholder="комментарий"></div>`;
+ h+=`<div class="row"><input id="fNewK" placeholder="ещё параметр, напр. V" style="max-width:120px"><input id="fNewV" placeholder="значение"><button id="fAddP">+</button></div>`;
+ return h+formBtns()+'</div>'}
+function formBtns(){return `<div class="btns"><button id="fOk">✔ Применить</button><button id="fUp">↑</button><button id="fDn">↓</button><button id="fDup">⧉ Копия</button><button id="fDel">🗑</button></div>
+ <div class="btns"><select id="fIns"><option value="">＋ вставить ниже…</option>${Object.keys(TEMPL).map(k=>`<option>${k}</option>`).join('')}</select></div>`}
+function cmdHelp(c){return {H:'Заготовка: DX длина, DY ширина, DZ толщина',XBO:'Сверление: X Y, Z глубина, D диаметр, R повторы (x/y шаг), N="P" плоское / "L" насквозь, F грань',BOANGO:'Угловое сверление: J угол',XG0:'Начало фрезеровки: T инструмент, C коррекция (0 нет, 1 справа, 2 слева), Z глубина',XL2P:'Отрезок до X Y (Z)',XAR2:'Дуга: конец X Y, r радиус (r<0 — большая дуга), G 2 по час. / 3 против',XAR:'Дуга: r>0 центр слева от хорды',XA2P:'Дуга: конец X Y, центр I J, G 2/3',XN:'Конец программы, отъезд',PAR:'Параметр, который вводит оператор',L:'Переменная',MSG:'Сообщение; SBY=2 — пауза (переворот детали)',XGIN:'Вход фрезы',XGOUT:'Выход фрезы'}[c]||c}
+function parHelp(k){return {X:'X',Y:'Y',Z:'глубина',D:'⌀',R:'повторы',x:'шаг X',y:'шаг Y',N:'P/L',F:'грань',T:'фреза',C:'коррекция',E:'',V:'скорость',G:'направл.',r:'радиус',I:'центр X',J:'центр Y',DX:'длина',DY:'ширина',DZ:'толщина'}[k]||''}
+function bindForm(){
+ const ok=$('fOk');if(!ok)return;const L=doc.lines[sel];
+ const apply=()=>{pushUndo();
+  if($('fRaw')){doc.lines[sel]=parseLine($('fRaw').value)}
+  else{document.querySelectorAll('[data-fi]').forEach(i=>{const p=L.params[+i.dataset.fi];if(i.dataset.flag)p.flag=i.value;else p.v=i.value.trim()});
+   L.params=L.params.filter(p=>p.flag!==undefined?p.flag!=='':p.v!=='');
+   const c=$('fCom').value;L.comment=c?c:(L.comment!=null&&c===''?null:L.comment);
+   const nk=$('fNewK').value.trim(),nv=$('fNewV').value.trim();if(nk&&nv)setP(L,nk,nv);
+   L.raw=buildLine(L)}
+  refresh()};
+ ok.onclick=apply;
+ document.querySelectorAll('.form input').forEach(i=>i.addEventListener('keydown',e=>{if(e.key=='Enter')apply()}));
+ if($('fAddP'))$('fAddP').onclick=apply;
+ $('fDel').onclick=()=>{pushUndo();doc.lines.splice(sel,1);sel=Math.min(sel,doc.lines.length-1);refresh()};
+ $('fDup').onclick=()=>{pushUndo();doc.lines.splice(sel+1,0,parseLine(doc.lines[sel].raw));sel++;refresh()};
+ $('fUp').onclick=()=>{if(sel<1)return;pushUndo();const t=doc.lines[sel];doc.lines[sel]=doc.lines[sel-1];doc.lines[sel-1]=t;sel--;refresh()};
+ $('fDn').onclick=()=>{if(sel>=doc.lines.length-1)return;pushUndo();const t=doc.lines[sel];doc.lines[sel]=doc.lines[sel+1];doc.lines[sel+1]=t;sel++;refresh()};
+ $('fIns').onchange=e=>{const t=TEMPL[e.target.value];if(!t)return;pushUndo();const arr=Array.isArray(t)?t:[t];doc.lines.splice(sel+1,0,...arr.map(parseLine));sel=sel+1;refresh()};
+}
+function help(){return `<h4>Как пользоваться</h4><div class="small">• Двумя пальцами — масштаб, одним — двигать, двойное касание — вписать.<br>• Коснитесь отверстия/фрезы — откроется строка программы с полями для правки.<br>• Формулы (DX/2, DY-32) сохраняются как есть, рядом показан результат.<br>• 📏 — измерение двумя касаниями, ＋⌀ — новое отверстие касанием.<br>• «Шаг» — пошаговая симуляция программы.<br>• Торцы F2–F5 нарисованы полосками вокруг детали.<br>• 💾 на телефоне — «Поделиться» → «Сохранить в Файлы» (или в мессенджер); через сервер на ПК — прямо в папку заказа с копией .bak.<br>• Все открытые файлы хранятся в приложении (вкладка «Файлы») и работают без интернета.</div>`}
+function renderSet(){
+ const pane=$('pane');
+ pane.innerHTML=`<h4>Грани</h4><label><input type="checkbox" id="sF2" ${SET.f2right?'checked':''}> F2 — правый торец (X=DX), F3 — левый, F4 — перед (Y=0), F5 — зад (Y=DY) — как в мануале Xilog Editor, стр. 81</label>
+ <h4>Поле станка</h4><div class="kv"><b>X</b><input id="sFx" value="${SET.field.x}"><span>мм</span><b>Y</b><input id="sFy" value="${SET.field.y}"><span>мм</span></div>
+ <h4>Инструменты (T = ⌀ мм)</h4><textarea id="sT" style="width:100%;height:200px;font-family:monospace">${Object.entries(SET.tools).map(([k,v])=>k+'='+v).join('\n')}</textarea>
+ <div class="btns"><button id="sOk">Сохранить настройки</button><button id="sRst">Сбросить</button></div>`;
+ $('sOk').onclick=()=>{SET.f2right=$('sF2').checked;SET.field={x:+$('sFx').value||3050,y:+$('sFy').value||1248};const t={};$('sT').value.split(/\n/).forEach(l=>{const m=/^\s*(\d+)\s*[=:]\s*([\d.,]+)/.exec(l);if(m)t[m[1]]=parseFloat(m[2].replace(',','.'))});SET.tools=t;saveSet();refresh();toast('Сохранено')};
+ $('sRst').onclick=()=>{localStorage.removeItem('xxl_set');SET={tools:TOOLS_DEFAULT,f2right:true,flipY:false,field:FIELD_DEFAULT};refresh();renderSet()};
+}
+
+// ====== ФАЙЛЫ ======
+function decode(buf){const u8=new Uint8Array(buf);try{return {t:new TextDecoder('utf-8',{fatal:true}).decode(u8),cp:false}}catch(e){return {t:new TextDecoder('windows-1250').decode(u8),cp:true}}}
+const CP1250={'ą':0xB9,'ć':0xE6,'ę':0xEA,'ł':0xB3,'ń':0xF1,'ó':0xF3,'ś':0x9C,'ź':0x9F,'ż':0xBF,'Ą':0xA5,'Ć':0xC6,'Ę':0xCA,'Ł':0xA3,'Ń':0xD1,'Ó':0xD3,'Ś':0x8C,'Ź':0x8F,'Ż':0xAF};
+function encode(text){if(!doc.cp1250)return new TextEncoder().encode(text);const out=new Uint8Array(text.length);for(let i=0;i<text.length;i++){const c=text[i],k=c.charCodeAt(0);out[i]=k<128?k:(CP1250[c]||63)}return out}
+function libGet(){try{return JSON.parse(localStorage.getItem('xxl_lib')||'[]')}catch(e){return []}}
+function libPut(name,text,cp){if(!name)return;let lib=libGet().filter(f=>f.name!==name);lib.unshift({name,text,cp,t:Date.now()});lib=lib.slice(0,300);try{localStorage.setItem('xxl_lib',JSON.stringify(lib))}catch(e){toast('Память для файлов заполнена — удалите старые')}}
+function curText(){return doc.lines.map(L=>L.raw).join('\n')}
+function loadText(text,name,path,keepView){
+ doc.crlf=/\r\n/.test(text)||(keepView&&doc.crlf);doc.name=name;doc.path=path||null;
+ doc.lines=text.replace(/\r/g,'').replace(/\n$/,'').split('\n').map(parseLine);
+ if(!keepView){undo=[];sel=-1;step=Infinity}
+ $('title').textContent=name+(path?'  (компьютер)':'');
+ localStorage.setItem('xxl_last',JSON.stringify({name,path,text,cp:doc.cp1250}));
+ if(!path)libPut(name,text,doc.cp1250);
+ refresh(!keepView)}
+function refresh(refit){model=build();
+ const sides=model.sides;const s=$('sSide');const cur=s.value;s.innerHTML='<option value="all">'+(sides>1?'A+B':'всё')+'</option>'+(sides>1?[...Array(sides)].map((_,i)=>`<option value="${i}">Сторона ${'ABCDEF'[i]}</option>`).join(''):'');s.value=[...s.options].some(o=>o.value==cur)?cur:'all';sideF=s.value;
+ stepMax=doc.lines.length-1;const r=$('step');r.max=stepMax;if(step>=stepMax||step==Infinity){r.value=stepMax;step=Infinity}$('stepv').textContent=step==Infinity?'всё':(step+1);
+ if(refit)fit();else draw();renderPane()}
+function autosave(){if(!doc.name)return;const text=curText();localStorage.setItem('xxl_last',JSON.stringify({name:doc.name,path:doc.path,text,cp:doc.cp1250}));if(!doc.path)libPut(doc.name,text,doc.cp1250)}
+function pushUndo(){setTimeout(autosave,0);undo.push(doc.lines.map(L=>L.raw).join('\n'));if(undo.length>100)undo.shift()}
+$('bUndo').onclick=()=>{if(!undo.length)return toast('Нечего отменять');const t=undo.pop();doc.lines=t.split('\n').map(parseLine);refresh();autosave()};
+$('bOpen').onclick=()=>$('fi').click();
+$('fi').onchange=async e=>{const fs=[...e.target.files];if(!fs.length)return;const f=fs[0];const {t,cp}=decode(await f.arrayBuffer());doc.cp1250=cp;loadText(t,f.name,null);
+ if(fs.length>1){for(const g of fs.slice(1)){const d=decode(await g.arrayBuffer());libPut(g.name,d.t,d.cp)}toast(fs.length+' файлов — во вкладке «Файлы»')}e.target.value='';if(tab=='files')renderFiles()};
+let localFiles=null,srvList=null,srvFilter='';
+$('bSave').onclick=async()=>{if(!model)return;const text=doc.lines.map(L=>L.raw).join(doc.crlf?'\r\n':'\n')+(doc.crlf?'\r\n':'\n');const bytes=encode(text);
+ if(doc.path&&SERVER){const r=await fetch('/api/save?p='+encodeURIComponent(doc.path),{method:'POST',body:bytes});toast(r.ok?'Сохранено на компьютере (+ .bak)':'Ошибка: '+await r.text());return}
+ autosave();
+ const file=new File([bytes],doc.name||'program.xxl',{type:'text/plain'});
+ if(navigator.canShare&&navigator.canShare({files:[file]})&&(/Android|iPhone|iPad/.test(navigator.userAgent)||navigator.maxTouchPoints>1)){try{await navigator.share({files:[file],title:doc.name});return}catch(e){}}
+ const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=doc.name||'program.xxl';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),5000);toast('Скачано: '+a.download)};
+async function loadSrvList(){try{const r=await fetch('/api/list',{cache:'no-store'});if(!r.ok||!(r.headers.get('content-type')||'').includes('json'))return;srvList=await r.json();SERVER=true;$('bSrv').style.display='';$('tFiles').style.display=''}catch(e){}}
+$('bSrv').onclick=()=>setTab('files');
+function renderFiles(){const pane=$('pane');let h='';const lib=libGet();
+ h+=`<h4>На этом устройстве (${lib.length})</h4><div class="small">Сюда попадает каждый открытый файл, правки сохраняются сами. Работает без интернета.</div><div class="btns"><button id="libOpen">📂 Добавить файлы</button><button id="libNew">＋ Новая программа</button></div><div class="files">`+lib.map((f,i)=>`<div class="f" data-lib="${i}" style="display:flex;justify-content:space-between;gap:8px"><span>${esc(f.name)}</span><span><span class="small">${new Date(f.t).toLocaleDateString()}</span> <b data-del="${i}" style="padding:0 8px;color:#ff7b72">✕</b></span></div>`).join('')+'</div>';
+  if(srvList){h+=`<h4>Заказы на компьютере</h4><input id="fFilt" placeholder="поиск…" style="width:100%" value="${esc(srvFilter)}"><div class="files">`;
+  const q=srvFilter.toLowerCase();
+  for(const d of srvList.dirs){const fs=d.files.filter(f=>!q||(d.dir+'/'+f).toLowerCase().includes(q));if(!fs.length)continue;
+   h+=`<details ${q?'open':''}><summary class="dir">${esc(d.dir)} <span class="small">(${fs.length})</span></summary>`+fs.map(f=>`<div class="f" data-p="${esc(d.dir+'/'+f)}">${esc(f)}</div>`).join('')+'</details>'}
+  h+='</div>'}
+ 
+ pane.innerHTML=h;
+ pane.querySelectorAll('[data-lib]').forEach(d=>d.onclick=e=>{const i=+d.dataset.lib;const f=libGet()[i];if(e.target.dataset.del!==undefined){if(confirm('Удалить из приложения: '+f.name+'?')){localStorage.setItem('xxl_lib',JSON.stringify(libGet().filter((_,j)=>j!==i)));renderFiles()}return}doc.cp1250=!!f.cp;loadText(f.text,f.name,null);setTab('code')});
+ $('libOpen').onclick=()=>$('fi').click();
+ $('libNew').onclick=()=>{const n=prompt('Имя файла','nowy.xxl');if(!n)return;doc.cp1250=false;loadText('H DX=800 DY=500 DZ=18 -L C=0 T=0 R=1 *MM /"def"\n; \nXN X=1400',/\.xxl$/i.test(n)?n:n+'.xxl',null);setTab('code')};
+ pane.querySelectorAll('[data-loc]').forEach(d=>d.onclick=async()=>{const f=localFiles[+d.dataset.loc];const {t,cp}=decode(await f.arrayBuffer());doc.cp1250=cp;loadText(t,f.name,null);setTab('code')});
+ pane.querySelectorAll('[data-p]').forEach(d=>d.onclick=()=>openSrv(d.dataset.p));
+ const fl=$('fFilt');if(fl)fl.oninput=()=>{srvFilter=fl.value;const pos=fl.selectionStart;renderFiles();const n=$('fFilt');n.focus();n.setSelectionRange(pos,pos)};
+}
+async function openSrv(p){const r=await fetch('/api/file?p='+encodeURIComponent(p));if(!r.ok)return toast('Не открылось');const {t,cp}=decode(await r.arrayBuffer());doc.cp1250=cp;loadText(t,p.split('/').pop(),p);setTab('code')}
+
+// ====== КНОПКИ ======
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+$('zIn').onclick=()=>zoomAt(W/2,H/2,1.5);$('zOut').onclick=()=>zoomAt(W/2,H/2,1/1.5);$('zFit').onclick=fit;
+$('zFlip').onclick=()=>{SET.flipY=!SET.flipY;saveSet();fit()};
+$('sSide').onchange=e=>{sideF=e.target.value;draw()};
+$('bMeas').onclick=()=>{mode=mode=='meas'?'':'meas';meas=[];$('bMeas').classList.toggle('on',mode=='meas');$('bAdd').classList.remove('on');draw();if(mode)toast('Коснитесь двух точек (привязка 0,5 мм)')};
+$('bAdd').onclick=()=>{mode=mode=='add'?'':'add';$('bAdd').classList.toggle('on',mode=='add');$('bMeas').classList.remove('on');meas=[];draw();if(mode)toast('Коснитесь места нового отверстия')};
+$('step').oninput=e=>{const v=+e.target.value;step=v>=stepMax?Infinity:v;$('stepv').textContent=step==Infinity?'всё':(v+1);if(step!=Infinity){sel=v;}draw()};
+let playT=null;$('play').onclick=()=>{if(playT){clearInterval(playT);playT=null;$('play').textContent='▶';return}
+ let v=step==Infinity?0:step;$('play').textContent='⏸';playT=setInterval(()=>{v++;if(v>stepMax){clearInterval(playT);playT=null;$('play').textContent='▶';step=Infinity;$('step').value=stepMax;$('stepv').textContent='всё';draw();return}step=v;$('step').value=v;$('stepv').textContent=v+1;draw()},250)};
+window.addEventListener('resize',resize);
+window.addEventListener('keydown',e=>{if(e.target.tagName=='INPUT'||e.target.tagName=='TEXTAREA')return;
+ if(e.ctrlKey&&e.key=='z'){$('bUndo').click();e.preventDefault()}if(e.ctrlKey&&e.key=='s'){$('bSave').click();e.preventDefault()}if(e.ctrlKey&&e.key=='o'){$('bOpen').click();e.preventDefault()}
+ if(e.key=='ArrowDown'&&sel<doc.lines.length-1)select(sel+1,true);if(e.key=='ArrowUp'&&sel>0)select(sel-1,true)});
+// перетаскивание файла на ПК
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',async e=>{e.preventDefault();const f=e.dataTransfer.files[0];if(!f)return;const {t,cp}=decode(await f.arrayBuffer());doc.cp1250=cp;loadText(t,f.name,null)});
+function toast(t){const d=$('toast');d.textContent=t;d.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>d.style.display='none',2200)}
+
+// ====== СТАРТ ======
+resize();
+const last=JSON.parse(localStorage.getItem('xxl_last')||'null');
+if(last){doc.cp1250=!!last.cp;loadText(last.text,last.name,last.path)}else renderPane();
+$('tFiles').style.display='';
+if(location.protocol.startsWith('http'))loadSrvList().then(()=>{if(!SERVER)return;const qp=new URLSearchParams(location.search).get('p');if(qp)openSrv(qp)});
+if('serviceWorker' in navigator&&(location.protocol=='https:'||location.hostname=='localhost'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+document.addEventListener('gesturestart',e=>e.preventDefault());
+window.onerror=(m,u,l)=>{document.title='ERR '+m+' @'+l};
+</script>
+</body>
+</html>
