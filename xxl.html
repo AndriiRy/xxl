@@ -545,8 +545,12 @@ function toast(t){const d=$('toast');d.textContent=tr(t);d.style.display='block'
 // konfirmaty 64 od końców (+ co ≤450), kołki 32 od końców (+ środkowy >400); zawias: płytka Y=37 ±16 Ø5×12, puszka Ø35×13 Y=22,5,
 // śruby puszki Ø8×11,5 (Y=32, ±22,5); półki Ø5×10, 37 od krawędzi, 3 otw. co 32; prowadnice Ø5×12 Y=37 i 261.
 function normCmd(t){return t.toLowerCase().replace(/[ąćęłńóśźż]/g,c=>({'ą':'a','ć':'c','ę':'e','ł':'l','ń':'n','ó':'o','ś':'s','ź':'z','ż':'z'})[c]).replace(/(\d),(\d)/g,'$1.$2').replace(/ё/g,'е')}
-function jointPos(L){if(L<160)return {konf:[L/2],kol:[]};const n=Math.max(1,Math.ceil((L-128)/450));const konf=[];for(let i=0;i<=n;i++)konf.push(64+(L-128)*i/n);
- const kol=[32,L-32];if(L>400)kol.push(n%2?L/2:(konf[n/2-1]+konf[n/2])/2);return {konf,kol:kol.sort((a,b)=>a-b)}}
+function jointPos(L,vis){ // = joint_layout() w tools/fusion_cnc.py (właściciel 07.10/08.10): kołek 32 od końców, konfirmat 64 od końców, w ŚRODKU konfirmat
+ if(vis)return {kol:L<=150?[32,L-32]:[32,L/2,L-32],konf:[]};          // widoczny bok — same kołki
+ if(L<90)return {kol:[],konf:[L/2]};
+ if(L<=150)return {kol:[32],konf:[L-32]};                              // trawers: kołek + konfirmat
+ const n=Math.max(1,Math.ceil((L-128)/450));const k=new Set([+(L/2).toFixed(2)]);for(let i=0;i<=n;i++)k.add(+(64+(L-128)*i/n).toFixed(2));
+ return {kol:[32,L-32],konf:[...k].sort((a,b)=>a-b)}}
 function pxv(v,D,name){if(typeof v=='string')return v;if(D&&Math.abs(v-D/2)<0.01)return name+'/2';if(D&&v>D/2&&v<=D)return name+'-'+f1(D-v);return f1(v)}
 function runCmd(raw){
  if(!model||!model.dx)return {err:'Сначала откройте программу (нужна строка H с DX DY DZ)'};
@@ -594,7 +598,7 @@ function runCmd(raw){
   const k=cnt||3,st=step||32;for(const a of P){const a0=add(a,-st*(k-1)/2);for(const b of [37,Ad-37])rA(a0,b,10,5,k,st,'półka ruchoma, '+k+' otw. co '+st+', '+oś(a))}
   what.push('półki '+k+' otw. co '+st+' ×'+P.length)}
  else if(edge&&has(/szczyt|wieniec|bok|przegrod|wienc|wi[ae]zan|polk|щит|связ|стенк|бок|царг|полк|kolk|konf|krawed|czol|торец|кромк/)){
-  const jp=jointPos(dy);const faces=left&&!right?[3]:right&&!left?[2]:[3,2];
+  const jp=jointPos(dy,visible);const faces=left&&!right?[3]:right&&!left?[2]:[3,2];
   for(const F of faces){const nm=F==3?'lewa':'prawa';
    for(const y of jp.kol)hE(y,28,8,F,'kołek czoło '+nm);
    if(!visible)for(const y of jp.konf)hE(y,41,4.8,F,'konfirmat czoło '+nm);
@@ -602,7 +606,7 @@ function runCmd(raw){
   what.push('wiązanie w czole '+faces.map(f=>'F'+f).join('+'))}
  else if(has(JOINT)||has(/stal|стац|неподв/)){
   const P=xs();if(!P.length)return {err:'Podaj wysokość od dołu, np. «W 600»'};
-  const jp=jointPos(Ad);
+  const jp=jointPos(Ad,visible);
   for(const a of P){for(const b of jp.kol)hA(a,b,12,8,'P','kołek, '+oś(a));
    if(visible){if(!jp.kol.length)for(const b of jp.konf)hA(a,b,12,8,'P','kołek, '+oś(a))}
    else for(const b of jp.konf)hA(a,b,'DZ+8',7,'L','konfirmat na wylot, '+oś(a))}
