@@ -621,21 +621,33 @@ function runCmd(raw){
  try{
  // ---- STANDARDY (właściciel 09.10, wg programów maszyny Andrii\BOKI DOLNE / BOKI GORNE FREZ NA2) ----
  const K=t.trim().split(/\s+/)[0];
- const TB={270:133,300:165,350:165,400:229,450:229,500:261,550:261,600:261};          // TANDEMBOX: 37 + wg NL (katalog Blum str. 345, = wiercenia.RUNNER_BY_NL)
- const AXA={270:96,300:128,350:128,400:192,450:224,500:224,550:224};                   // GTV AXIS PRO: rozstaw A (= fusion_dodatki.AXIS_A)
- const pickNL=tab=>{const ks=Object.keys(tab).map(Number).sort((a,b)=>a-b);if(NLv&&tab[NLv])return NLv;let b=ks[0];for(const n of ks)if(n<=Ad-10)b=n;return b};   // NL ≤ głębokość − 10 (bok 510 → NL500)
- const RUN={ba:['Blum TANDEMBOX antaro',TB,0,''],bt:['Blum TANDEM',TB,0,' ⚠ sprawdzić szablonem'],mv:['Blum MOVENTO',TB,0,' ⚠ sprawdzić szablonem'],
-  mb:['Blum MERIVOBOX',TB,0,' ⚠ sprawdzić szablonem'],lg:['Blum LEGRABOX',TB,1,''],ax:['GTV AXIS PRO',null,0,'']};
- const AV={hks:['AVENTOS HK-S',74,[37,101]],hk:['AVENTOS HK top',96,[37,165]],hkxs:['AVENTOS HK-XS',155,[37],32],hl:['AVENTOS HL top',106,[37,229]],
-  hf:['AVENTOS HF top',159,[37,229]],hs:['AVENTOS HS top',106,[37,229],0,' ⚠ HS wg HL — sprawdzić szablonem Blum']};
+ // ---- prowadnice: otwory pod wkręty EURO Ø5 wg katalogu Blum 2027/28 (str. «Montaż prowadnic» / «Mocowanie prowadnic») ----
+ // [maks. NL zakresu, [Y otworów od przodu]] ; NL — dostępne długości
+ const RT={
+  ba:{n:'Blum TANDEMBOX antaro (578)',nl:[270,300,350,400,450,500,550,600],t:[[270,[37,133]],[350,[37,165]],[400,[37,229]],[600,[37,261]]],min:'oś min 33 nad wieńcem dolnym (pod szufladą min 9)'},
+  lg:{n:'Blum LEGRABOX (750)',nl:[270,300,350,400,450,500,550,600],t:[[270,[37,69,197]],[350,[37,69,261]],[500,[37,69,261,293]],[600,[37,69,261,293,357]]],min:'oś min 38 nad wieńcem dolnym (+1 gdy prowadnice przed skręceniem)'},
+  mv:{n:'Blum MOVENTO (760H)',nl:[250,270,300,320,350,380,400,420,450,480,500,520,550,600],t:[[270,[37,69,197]],[350,[37,69,261]],[600,[37,69,261,293]]],min:'oś min 38 nad wieńcem dolnym (+1 gdy prowadnice przed skręceniem), nad szufladą min 7'},
+  bt:{n:'Blum TANDEM (560H)',nl:[250,270,300,350,380,400,420,450,480,500,550,600],t:[[270,[37,69,133]],[380,[37,69,261]],[420,[37,69,229]],[550,[37,69,261]],[600,[37,69,261,325]]],min:'oś 37 nad wieńcem dolnym, nad szufladą min 7'},
+  mb:{n:'Blum MERIVOBOX (450)',nl:[270,300,350,400,450,500,550,600],t:[[350,[37,69,197,229]],[600,[37,69,261,293]]],min:'oś min 54 nad wieńcem dolnym (+1 gdy prowadnice przed skręceniem)'},
+  ax:{n:'GTV AXIS PRO',nl:[270,300,350,400,450,500,550],t:[[270,[37,133]],[350,[37,165]],[400,[37,229]],[550,[37,261]]],min:'wg instrukcji GTV: oś 22,8 nad spodem szuflady ⚠'}};
+ const pickNL=r=>{let b=r.nl[0];for(const n of r.nl)if(n<=(NLv||Ad-10))b=n;return b};          // NL ≤ głębokość − 10 (bok 510 → NL500) lub «nl …»
+ // ---- AVENTOS wg katalogu Blum 2027/28 (wkręty EURO Ø5 × 11,5; HK-S — bolce Ø5 × 5); X od GÓRNEJ krawędzi boku (X=0) ----
+ const HFH=dx<520?93.5:116;                                                            // HF top: H = 93,5 (KH 480–519) / 116 (KH 520–1200)
+ const AV={hks:{n:'AVENTOS HK-S',x:[74],y:[37,101],z:5,min:'LH min 150, wieniec górny max 22 (kat. str. 49)'},
+  hk:{n:'AVENTOS HK top',x:[36],y:[37,69,133,165],z:11.5,min:'LH min 173 (kat. str. 40)'},
+  hkxs:{n:'AVENTOS HK-XS',x:[137+dz,169+dz],y:[37],z:11.5,min:'H = 137 + MD + K + SOB (zawias nakładany K=0), LH min 200 (kat. str. 56)'},
+  hl:{n:'AVENTOS HL top',x:[63,127],y:[101,229],z:11.5,min:'LH min 255 / 295 / 345 / 399 wg zestawu 22L3200…3900 (kat. str. 34)'},
+  hs:{n:'AVENTOS HS top',x:[63,127],y:[101,229],z:11.5,min:'LH min 307 (kat. str. 28)'},
+  hf:{n:'AVENTOS HF top',x:[HFH,HFH+64],y:[101,229],z:11.5,min:'KH 480–519: H 93,5, KH 520–1200: H 116; LH min 443 / 512 / 632 (kat. str. 16)'}};
  const XYm=(x,b)=>XY(x,b);                                                            // x = współrzędna maszyny (bez przeliczania wysokości)
- if(RUN[K]){const [nm,tab,pair,w]=RUN[K];const P=xs();if(!P.length)return {err:'Podaj oś prowadnicy, np. «'+K+' 55.5» (+ «nl 450»)'};
-  const NL=K=='ax'?pickNL(AXA):pickNL(tab);const sec=K=='ax'?37+AXA[NL]:tab[NL];
-  for(const a of P)for(const b of [37,sec]){hA(a,b,12,5,'P',nm+' NL'+NL+', '+oś(a)+w);if(pair)hA(a,b+32,12,5,'P',nm+' NL'+NL+' (para)')}
-  what.push(nm+' NL'+NL+' ×'+P.length)}
- else if(AV[K]){const [nm,x0,ys,xstep,w]=AV[K];const P=xs();const xsM=P.length?P.map(hm):[x0];
-  for(const x of xsM)for(const b of ys){L.push(`XBO ${XYm(x,b)} Z=5 R=${xstep?2+'# '+sl+'='+xstep:1} D=5 N="P" F=1`+com(nm+(w||'')))}
-  what.push(nm+(P.length?'':' (domyślnie X='+x0+' od góry)'))}
+ if(RT[K]){const r=RT[K];const P=xs();if(!P.length)return {err:'Podaj oś prowadnicy, np. «'+K+' 55.5» (+ «nl 450»). '+r.min};
+  const NL=pickNL(r);const ys=r.t.find(([m])=>NL<=m)[1];
+  for(const a of P)for(const b of ys)hA(a,b,12,5,'P',r.n+' NL'+NL+', '+oś(a));
+  const MINW={ba:33,lg:38,mv:38,bt:37,mb:54}[K];let low='';if(MINW)for(const a of P){const x=val(hm(a)),d=dx-dz-x;if(d<MINW-0.01)low+=` ⚠ oś ${f1(val(a))}: ${f1(d)} nad wieńcem dolnym — za nisko (min ${MINW})`}
+  what.push(r.n+' NL'+NL+' (Y '+ys.join(' / ')+') ×'+P.length+' — '+r.min+low)}
+ else if(AV[K]){const r=AV[K];const P=xs();const x0=r.x[0];const xsM=P.length?P.flatMap(a=>r.x.map(x=>typeof hm(a)=='number'?hm(a)+(x-x0):hm(a)+'+'+f1(x-x0))):r.x;
+  for(const x of xsM)for(const b of r.y)L.push(`XBO ${XYm(typeof x=='number'?+f1(x):x,b)} Z=${r.z} R=1 D=5 N="P" F=1`+com(r.n));
+  what.push(r.n+' X '+(P.length?P.join(','):r.x.map(f1).join(' / '))+', Y '+r.y.join(' / ')+' — '+r.min)}
  else if(K=='sz'||K=='szorta'||K=='trawers'||K=='szorty'){const P=xs();if(!P.length)return {err:'Podaj położenie szorty, np. «sz 9» lub «sz DX-9»'};
   const jp=jointPos(SZW,visible);const fr=has(/\bprzod|\bprzód|\bперед/),bk=has(/\btyl\b|\btył|\bзад/);const sides=fr&&!bk?['p']:bk&&!fr?['t']:['p','t'];
   for(const a of P)for(const sd of sides){const yy=v=>sd=='p'?v:Ad-v;
@@ -717,6 +729,7 @@ rowek hdf 510        → T82 na całą długość
 otwór fi 8 gł 12 100 200 / konfirmat 100 200
 wycięcie 200x100 na 300 150 gł 10 / okrąg fi 60 300 200
 W 300; p32 600; W 900 → kilka poleceń przez «;»</pre>
+Min. od wieńca (katalog Blum 2027/28): ba oś ≥33 · lg ≥38 · mv ≥38 · bt 37 · mb ≥54 nad wieńcem dolnym; AVENTOS — wysokość wewn. LH: hks ≥150, hk ≥173, hkxs ≥200, hl ≥255–399, hs ≥307, hf ≥443
 sz 9 · tyl · tw · ba/bt/lg/mv/mb/ax 55.5 (nl 450) · hks hk hkxs hl hf hs · zw → standardy; podpowiedzi pokazują się przy pisaniu
 Po rusku też: «под щит 600», «полки 300», «петли 100 600». DX-100 / DY/2 zostaje formułą.</div>`;
 function doCmd(){const inp=$('cmdIn');const v=inp.value.trim();const out=$('cmdOut');if(!v){out.innerHTML=cmdHelpBox();return}
@@ -809,10 +822,10 @@ const CMD_LIST=[
  ['tyl','tył z płyty: Y=DY-9, kołek + konfirmat przy wieńcach'],['tw','tył widoczny: kołki + mimośród Ø25'],
  ['p32 300','półka ruchoma: 3 otw. co 32, Y=50 i DY-50'],['p64 300','półka ruchoma: 3 otw. co 64'],
  ['z 100 620','zawiasy — płytki Y=37, ±16'],['zawias front 100 616','front: puszki Ø35 + INSERTA Ø8'],
- ['ba 55.5','Blum TANDEMBOX antaro (37 + wg NL)'],['bt 55.5','Blum TANDEM (drewniana szuflada)'],['lg 56','Blum LEGRABOX (pary co 32)'],
- ['mv 55.5','Blum MOVENTO'],['mb 55.5','Blum MERIVOBOX'],['ax 55.5','GTV AXIS PRO'],['ba 55.5 nl 450','prowadnica innej długości (NL)'],
- ['hks','AVENTOS HK-S (X=74, Y 37 / 101)'],['hk','AVENTOS HK top (X=96, Y 37 / 165)'],['hkxs','AVENTOS HK-XS (X=155 i 187, Y=37)'],
- ['hl','AVENTOS HL top (X=106, Y 37 / 229)'],['hf','AVENTOS HF top (X=159, Y 37 / 229)'],['hs','AVENTOS HS top ⚠ wg HL'],['hks 430','podnośnik w innym miejscu (X)'],
+ ['ba 55.5','Blum TANDEMBOX antaro — oś min 33 nad wieńcem'],['bt 55.5','Blum TANDEM 560H — oś 37 nad wieńcem'],['lg 56','Blum LEGRABOX — oś min 38 nad wieńcem'],
+ ['mv 55.5','Blum MOVENTO — oś min 38 nad wieńcem'],['mb 55.5','Blum MERIVOBOX — oś min 54 nad wieńcem'],['ax 55.5','GTV AXIS PRO'],['ba 55.5 nl 450','prowadnica innej długości (NL)'],
+ ['hks','AVENTOS HK-S: X 74, Y 37/101 — LH min 150'],['hk','AVENTOS HK top: X 36, Y 37/69/133/165 — LH min 173'],['hkxs','AVENTOS HK-XS: X 137+DZ i +32, Y 37 — LH min 200'],
+ ['hl','AVENTOS HL top: X 63/127, Y 101/229 — LH min 255–399'],['hf','AVENTOS HF top: X 116/180 (KH<520: 93,5), Y 101/229 — LH min 443'],['hs','AVENTOS HS top: X 63/127, Y 101/229 — LH min 307'],['hks 430','podnośnik przesunięty (X pierwszego otworu)'],
  ['zw','zawieszki szafki górnej (X=51, Y=DY-66 / DY-34)'],['prowadnica 200','Ø5 Y=37 i 261'],['rowek hdf 510','rowek HDF piłą'],
  ['otwór fi 8 gł 12 100 200','pojedynczy otwór X Y'],['wycięcie 200x100 na 300 150 gł 10','kieszeń / wycięcie'],['okrąg fi 60 300 200','otwór frezem po okręgu']];
 function showSug(){const inp=$('cmdIn'),box=$('cmdSug');const v=inp.value;const seg=v.split(';').pop().trimStart().toLowerCase();
