@@ -1,0 +1,626 @@
+<title>Сауна «Кассета-24»</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: техпаспорт изделия — 3D-стенд во всю ширину, ниже пять разделов документации в одну колонку с плотными таблицами */
+:root{
+  --paper:#eceeed; --sheet:#f7f8f7; --ink:#1b2124; --muted:#5a676c; --rule:#cfd5d4;
+  --osb:#a8661f; --osb-soft:#efe0cb; --fire:#b8392a; --fire-soft:#f6dfdb; --steel:#5f7379; --stage:#dde3e2;
+  --f-display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --f-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111517; --sheet:#181d20; --ink:#e2e6e5; --muted:#94a1a5; --rule:#2b3337;
+  --osb:#e39b4c; --osb-soft:#3a2a18; --fire:#e8685a; --fire-soft:#3b1d19; --steel:#93a7ad; --stage:#0e1214; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111517; --sheet:#181d20; --ink:#e2e6e5; --muted:#94a1a5; --rule:#2b3337;
+  --osb:#e39b4c; --osb-soft:#3a2a18; --fire:#e8685a; --fire-soft:#3b1d19; --steel:#93a7ad; --stage:#0e1214; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:28px 64px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:40px}
+header{display:grid;gap:14px}
+.eyebrow{font:600 11.5px/1 var(--f-mono);letter-spacing:.12em;text-transform:uppercase;color:var(--osb)}
+h1{font:700 clamp(28px,4.4vw,48px)/1.05 var(--f-display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.lede{max-width:72ch;color:var(--muted);margin:0}
+.specs{display:flex;flex-wrap:wrap;gap:8px 28px;padding-top:6px;border-top:1px solid var(--rule)}
+.spec{display:grid;gap:2px;min-width:0}
+.spec b{font:600 17px/1.2 var(--f-mono);font-variant-numeric:tabular-nums}
+.spec span{font-size:12px;color:var(--muted)}
+/* stage */
+.stage-wrap{display:grid;gap:10px}
+.stage{position:relative;width:100%;aspect-ratio:16/10;max-height:78vh;min-height:360px;background:var(--stage);border-radius:6px;overflow:hidden;cursor:pointer;touch-action:none}
+.stage canvas{display:block;width:100%;height:100%}
+.hint{position:absolute;left:14px;top:12px;font:600 12px/1.3 var(--f-mono);color:var(--ink);background:color-mix(in srgb,var(--sheet) 82%,transparent);padding:7px 10px;border-radius:4px;pointer-events:none}
+.pick{position:absolute;left:14px;bottom:12px;max-width:min(380px,calc(100% - 28px));background:color-mix(in srgb,var(--sheet) 92%,transparent);border-left:3px solid var(--osb);padding:8px 12px;border-radius:0 4px 4px 0;pointer-events:none;font-size:13px}
+.pick b{font:600 13px/1.3 var(--f-mono);display:block}
+.pick span{color:var(--muted)}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+button,.chip{font:600 13px/1 var(--f-body);color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:9px 13px;cursor:pointer}
+button:hover,.chip:hover{border-color:var(--osb)}
+button:focus-visible,.chip:focus-within,input:focus-visible{outline:2px solid var(--osb);outline-offset:2px}
+button.primary{background:var(--osb);border-color:var(--osb);color:#fff}
+.range{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.range input{width:160px;accent-color:var(--osb)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;font-weight:500}
+.chip input{margin:0;accent-color:var(--osb)}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+/* doc */
+section{display:grid;gap:16px;min-width:0}
+h2{font:700 19px/1.2 var(--f-display);margin:0;padding-bottom:10px;border-bottom:2px solid var(--ink);letter-spacing:.01em;text-wrap:balance}
+h3{font:600 13px/1.2 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:8px 0 0}
+ul.dense{margin:0;padding-left:18px;display:grid;gap:4px;max-width:96ch}
+ul.dense li::marker{color:var(--osb)}
+ol.steps{margin:0;padding-left:22px;display:grid;gap:14px;max-width:100ch}
+ol.steps>li::marker{font:700 15px var(--f-display);color:var(--osb)}
+ol.steps b{font-weight:600}
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--sheet)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font:600 11px/1.3 var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:var(--paper);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+td.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:12.5px}
+td.num{text-align:right;white-space:nowrap}
+.tag{font:600 11px/1 var(--f-mono);padding:3px 6px;border-radius:3px;background:var(--osb-soft);color:var(--osb);white-space:nowrap}
+.warn{border-left:3px solid var(--fire);background:var(--fire-soft);padding:12px 14px;border-radius:0 4px 4px 0;font-size:14px;max-width:100ch}
+.warn b{color:var(--fire)}
+.det{display:grid;gap:3px;font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.det div{padding:4px 0;border-bottom:1px dashed var(--rule);display:flex;gap:10px;flex-wrap:wrap}
+.det div b{color:var(--osb);min-width:62px}
+.det div span.m{color:var(--muted)}
+.sheets{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.sh{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:10px;display:grid;gap:8px;min-width:0}
+.sh header{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sh header b{font:600 13px var(--f-mono)}
+.sh header span{font-size:12px;color:var(--muted)}
+.sh svg{width:100%;height:auto;display:block}
+.sh button{padding:6px 10px;font-size:12px;justify-self:start}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px 28px}
+.grid2>div{min-width:0}
+textarea#fallback{width:100%;height:120px;font:12px var(--f-mono);background:var(--sheet);color:var(--ink);border:1px solid var(--rule)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto}}
+@media (max-width:560px){.stage{aspect-ratio:4/5}.range input{width:120px}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Проект · ОСП-3 18 мм · фрезеровка ЧПУ + ручная сборка</div>
+  <h1>Сауна «Кассета-24» на дровах</h1>
+  <p class="lede">Сборно-разборная финская сауна из 14 кассет. Обшивка и рёбра вырезаются на ЧПУ из ОСП-3 18 мм, кассеты собираются на шип-паз и стягиваются болтами М8. Ниже 3D-модель, деталировка, карты раскроя с DXF и порядок сборки.</p>
+  <div class="specs" id="specs"></div>
+</header>
+
+<div class="stage-wrap">
+  <div class="stage" id="stage" role="img" aria-label="3D-модель сауны. Нажмите, чтобы разнести или собрать.">
+    <div class="hint" id="hint">Нажмите на сауну, чтобы разнести слои · тяните для вращения</div>
+    <div class="pick" id="pick" hidden></div>
+  </div>
+  <div class="controls">
+    <button class="primary" id="btnExplode" type="button">Разнести</button>
+    <label class="range" for="exp">Разнос <input id="exp" type="range" min="0" max="100" value="0"></label>
+    <button id="btnCut" type="button" aria-pressed="false">Срез: фасад, левая стена, потолок</button>
+    <button id="btnView" type="button">Сбросить вид</button>
+  </div>
+  <div class="chips" id="layers"></div>
+</div>
+
+<section id="s1">
+  <h2>1. Технический анализ изделия</h2>
+  <ul class="dense" id="analysis"></ul>
+  <div class="warn"><b>Пожарная безопасность.</b> ОСП горит и при нагреве выделяет смолы. Поэтому ОСП стоит только снаружи контура «фольга + вагонка» и нигде не открыта в парилку. Расстояние от печи до стен и потолка берите из паспорта печи. Минимум в этом проекте: 260 мм до стены, закрытой экраном AISI 430 на базальтовом картоне с зазором 25 мм. Проход дымохода через потолок делается только через ППУ с базальтовым наполнением. Используйте ОСП-3 с эмиссией E1 или E0.5.</div>
+</section>
+
+<section id="s2">
+  <h2>2. Материалы и фурнитура</h2>
+  <div class="tw"><table id="mat"><thead><tr><th>Элемент</th><th>Материал</th><th>Толщина, мм</th><th>Фурнитура / крепёж</th><th>Кол-во</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="s3">
+  <h2>3. Деталировка и карта раскроя</h2>
+  <h3>3.1 Обшивки кассет, ОСП-3 18 (лист 2500×1250, волокно вдоль длины детали)</h3>
+  <div class="det" id="detSkins"></div>
+  <h3>3.2 Рёбра кассет, ОСП-3 18 (позиции, шип 18×60 на кромке)</h3>
+  <div class="det" id="detRibs"></div>
+  <h3>3.3 Деревянные детали (ручной раскрой)</h3>
+  <div class="det" id="detWood"></div>
+  <h3>3.4 Масса кассет (для ручного монтажа)</h3>
+  <div class="tw"><table id="weights"><thead><tr><th>Кассета</th><th>Назначение</th><th>Рёбер</th><th>Масса, кг</th><th>Монтаж</th></tr></thead><tbody></tbody></table></div>
+  <h3>3.5 Карта раскроя</h3>
+  <div class="legend"><span><i class="sw" style="background:var(--osb-soft);outline:1px solid var(--osb)"></i> обшивка</span><span><i class="sw" style="background:color-mix(in srgb,var(--steel) 25%,transparent);outline:1px solid var(--steel)"></i> ребро</span><span><i class="sw" style="background:var(--fire)"></i> отверстие Ø9 под болт</span><span>Кнопка DXF копирует файл листа в буфер обмена (слои: CUT_OUTER, CUT_INNER, DRILL_D9, MARK_D3, ENGRAVE).</span></div>
+  <textarea id="fallback" hidden aria-label="DXF для ручного копирования"></textarea>
+  <div class="sheets" id="sheets"></div>
+</section>
+
+<section id="s4">
+  <h2>4. Пошаговый процесс изготовления</h2>
+  <div class="grid2">
+    <div>
+      <h3>Распил и кромление</h3>
+      <ul class="dense">
+        <li>Станок: поле ≥ 2500×1250, вакуумный стол или крепление в жертвенный стол саморезами вне деталей.</li>
+        <li>Перед запуском замерьте фактическую толщину листа t<sub>ф</sub> в 5 точках. Ширина паза = t<sub>ф</sub> + 0.5 мм (в DXF 18.5 мм). Если ОСП 17.6–18.4 мм, пересчитайте пазы.</li>
+        <li>Фреза компрессионная Ø6 Z2: 18 000 об/мин, F 4500–6000 мм/мин, 2 прохода по 9.5 мм, перебор 0.5 мм в жертвенный стол.</li>
+        <li>Порядок операций: 1) MARK_D3 — засверловка Ø3 на 2 мм; 2) DRILL_D9 — Ø9 сквозное (спираль фрезой Ø6); 3) CUT_INNER — пазы и проёмы, в углах пазов dog-bone Ø6.4; 4) ENGRAVE — гравировка кода детали; 5) CUT_OUTER — контур с 3–4 перемычками 6×4 мм.</li>
+        <li>Шипы рёбер: 18×60 (на коротких рёбрах до 250 мм — 18×40), высота шипа 18 = толщина обшивки. После сборки сошлифуйте шипы заподлицо.</li>
+        <li>Кромление: ОСП не кромится. Наружные торцы и шипы покройте грунт-пропиткой для ОСП в 2 слоя. Внутренние поверхности кассет не красить.</li>
+        <li>Обшивку стен вырезайте внутренней стороной вверх (гравировка «VN»). Все проёмы на листе показаны так, как они видны изнутри сауны.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Присадка (сверление)</h3>
+      <ul class="dense" id="drillList"></ul>
+    </div>
+  </div>
+  <div class="tw"><table id="drill"><thead><tr><th>Поз.</th><th>L×B, мм</th><th>Шт.</th><th>Центры шипов от торца, мм</th><th>Ø9 от торца, мм (ось — 75 мм от лица обшивки)</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="s5">
+  <h2>5. Инструкция по сборке</h2>
+  <ol class="steps" id="assembly"></ol>
+</section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="model.js"></script>
+<script>
+(function(){
+'use strict';
+const M = window.SaunaModel, P = M.P, T = M.totals, I = M.interior;
+const $ = s => document.querySelector(s);
+const fmt = (n, d=0) => Number(n).toLocaleString('ru-RU', {minimumFractionDigits:d, maximumFractionDigits:d});
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================= ДОКУМЕНТАЦИЯ ================= */
+$('#specs').innerHTML = [
+  [`${T.ext[0]}×${T.ext[1]}×${T.ext[2]}`, 'наружные Ш×В×Г, мм'],
+  [`${T.int[0]}×${T.int[1]}×${T.int[2]}`, 'внутренние Ш×В×Г, мм'],
+  [`${fmt(T.volume,1)} м³`, 'объём парилки'],
+  [`${T.sheets} листов`, 'ОСП-3 18, 2500×1250'],
+  [`${T.skinCount + T.ribCount} деталей`, `${T.skinCount} обшивок, ${T.ribCount} рёбер`],
+  [`≈ ${fmt(T.osbKg + 420,0)} кг`, 'масса без камней'],
+].map(([b,s]) => `<div class="spec"><b>${b}</b><span>${s}</span></div>`).join('');
+
+$('#analysis').innerHTML = [
+  `<b>Тип:</b> финская сауна, сухой пар 80–100 °C, дровяная печь-каменка с топкой из парилки. Сборно-разборная, 14 кассет. Стиль — минималистичный прямоугольный объём с плоской кровлей.`,
+  `<b>Габариты:</b> наружные ${T.ext.join(' × ')} мм (Ш×В×Г). Внутри ${T.int.join(' × ')} мм, объём ${fmt(T.volume,1)} м³. Расчёт на 2–3 человека.`,
+  `<b>Несущая схема:</b> кассеты «обшивка 18 + рёбра 18×150 на ребро». Пол (2 шт.) — короб с двумя обшивками, лаги вдоль Z с шагом ≤ 400. Стены (8 шт.) — стойки с шагом ≤ 600 под плиту утеплителя 600. Потолок (2 шт.) — балки вдоль X, пролёт ${T.int[0]} мм, у балок середины сдвоенные рёбра 36×150.`,
+  `<b>Узлы:</b> ребро в обшивку — шип-паз (ЧПУ), клей ПУ D4 и саморезы по разметке Ø3. Кассета к кассете — болты М8 через стыковые рёбра с шагом ~400. Обшивка стен выпущена на высоту пола (186 мм) и потолка (150 мм) и прикручивается к их балкам. Обшивка боковых стен перекрывает крайние стойки фасада и задней стены. Отдельный каркас не нужен.`,
+  `<b>Пирог стены и потолка (снаружи внутрь):</b> ОСП 18 → базальтовая вата 150 → фольга (пароизоляция) → обрешётка 20×40 (вентзазор) → вагонка 14. Итого 203 мм. <b>Пол:</b> ОСП 18 → вата 150 → ОСП 18 → мембрана → съёмные трапы 28.`,
+  `<b>Планировка:</b> дверь 700×1900 по коробке в левой части фасада. Печь в правом переднем углу, в 260 мм от защищённых стен. Полок 600 мм на высоте 1000 мм вдоль задней стены, нижняя ступень 400 мм на высоте 500 мм. Окно 400×400 в левой стене. Приток 150×150 за печью внизу, вытяжка по диагонали — на задней стене под потолком.`,
+  `<b>Установка:</b> на участке под навесом или с кровлей (профлист по контробрешётке, уклон ≥ 5°), либо в помещении с выводом дымохода наружу. Основание — 9 опор по сетке 1100×1100.`,
+].map(s => `<li>${s}</li>`).join('');
+
+const matRows = [
+  ['Обшивка кассет', 'ОСП-3, E1', '18', 'Саморез 4.5×50 оцинк. по разметке Ø3, шаг 150', `${fmt(T.skinScrews)} шт.`],
+  ['Рёбра кассет', 'ОСП-3, E1', '18 (ребро 150)', 'Шип-паз 18×60 + клей ПУ D4 (теплостойкий); саморез 5×80 в стыки рёбер', `${fmt(T.ribLen,1)} п.м; 5×80 — ${fmt(T.ribScrews)} шт.; клей ${fmt(T.glueKg,1)} кг`],
+  ['Стыки кассет', '—', '—', 'Болт М8×70 DIN 933 + 2 шайбы DIN 9021 + гайка DIN 985; лента EPDM 20×5 в стык', `${fmt(T.bolts)} компл.; лента ≈ 40 м`],
+  ['Стены → пол / потолок', '—', '—', 'Саморез 5×90 через обвязку, шаг 300; уголок усиленный 90×90×65 — 4 на внутренний угол', `${fmt(T.plateScrews)} шт.; уголков 16`],
+  ['Утеплитель', 'Базальтовая вата 35–45 кг/м³', '150 (100+50)', 'Распор, без крепежа', `${fmt(T.insul,2)} м³`],
+  ['Пароизоляция', 'Фольга 50 мкм на крафт-основе', '—', 'Нахлёст 100 мм, алюминиевый скотч 50 мм, скоба 10 мм', `${fmt(T.foilA*1.15,1)} м²; скотч 3 рулона`],
+  ['Обрешётка', 'Брусок сосна, камерная сушка', '20×40', 'Саморез 4×60 в рёбра, шаг 400', `${fmt(T.battenL*1.1,0)} п.м`],
+  ['Вагонка (стены, потолок)', 'Осина или липа, класс А', '14×96', 'Кляймер №2 + гвоздь 1.6×20 нерж.', `${fmt(T.liningA*1.1,1)} м²`],
+  ['Полок и ступень', 'Абаш или липа (доска), каркас — брус осина', '28×90; 45×70', 'Саморез нерж. A2 4.5×60, крепление снизу, без металла сверху', 'см. 3.3'],
+  ['Пол парилки', 'Мембрана ПВХ 1.5 мм + трапы лиственница', '1.5; 28×90', 'Мембрана заведена на стены на 100 мм', `${fmt((I.x1-I.x0)*(I.z1-I.z0)/1e6*1.2,1)} м²`],
+  ['Основание печи', 'ЛСУ (ЦСП) 2×10 + сталь 1 мм', '21', 'Саморез 4.2×41 по металлу; притопочный лист 400×400', '650×650 мм'],
+  ['Защитные экраны', 'AISI 430 0.5 мм на базальтовом картоне 5 мм', '5.5 (+25 зазор)', 'Керамические втулки 25 мм, саморез 4.2×65', 'стена ≈ 2.7 м², потолок 0.8 м²'],
+  ['Печь-каменка', 'Сталь, на объём 8–12 м³, выход Ø115', '—', 'Камни: габбро-диабаз / жадеит, 40–60 кг', '1 шт.'],
+  ['Дымоход', 'Моно Ø115 + сэндвич Ø115/200, AISI 430/304', '—', 'ППУ 500×500, мастер-флеш, искрогаситель; выше кровли ≥ 500 мм', 'моно 1 м, сэндвич 2 м'],
+  ['Дверь', 'Закалённое стекло 8 мм, коробка осина', '—', 'Петли и ручка в комплекте, проём в ОСП 710×1910', '700×1900, 1 шт.'],
+  ['Окно', 'Закалённое стекло / стеклопакет, рама осина', '—', 'Проём в ОСП 410×410', '400×400, 1 шт.'],
+  ['Вентиляция', 'Решётка 150×150 с задвижкой', '—', 'Короб из вагонки в проёме, фольга заведена на короб', '2 шт.'],
+  ['Основание', 'Блок бетонный 200×200×400 или регулируемая опора', '—', 'Гидроизоляция под пол: 2 слоя рубероида на опору', '9 шт.'],
+  ['Наружная защита', 'Фасадная краска для ОСП или ветрозащита + планкен', '—', 'Отливы и угловые планки из оцинковки', `≈ ${fmt(2*(T.ext[0]+T.ext[2])*T.ext[1]/1e6 + T.ext[0]*T.ext[2]/1e6,1)} м²`],
+  ['Электрика', 'Светильник IP54 на +125 °C, кабель РКГМ 3×1.5', '—', 'Выключатель вне парилки, кабель в металлорукаве', '1 комплект'],
+];
+$('#mat tbody').innerHTML = matRows.map(r => `<tr>${r.map((c,i)=>`<td${i===4?' class="mono"':''}>${c}</td>`).join('')}</tr>`).join('');
+
+// 3.1 обшивки
+const skinRows = M.skinParts.map(sp => {
+  const r = sp.rect, w = r.u1-r.u0, h = r.v1-r.v0, L = Math.max(w,h), B = Math.min(w,h);
+  const ops = sp.holes.map(o => `${o.name} ${o.u1-o.u0}×${o.v1-o.v0}`).join(', ');
+  return `<div><b>${sp.id}</b><span>${esc(sp.role)}: 1 шт. — ${L} × ${B} мм (Кромка: нет, торцы — грунт)</span><span class="m">пазов ${sp.slots.length}, разметок Ø3 ${sp.marks.length}${ops?' · '+ops:''}</span></div>`;
+});
+$('#detSkins').innerHTML = skinRows.join('');
+// 3.2 рёбра
+$('#detRibs').innerHTML = M.ribGroups.map(g => {
+  const cas = [...new Set(g.items.map(i=>i.cas))].join(', ');
+  return `<div><b>${g.mark}</b><span>${esc([...g.roles].join(' / '))}: ${g.items.length} шт. — ${g.L} × ${g.h} мм (Кромка: нет)</span><span class="m">шипов ${g.tabs}, Ø9 ${g.holes} · ${cas}</span></div>`;
+}).join('');
+// 3.3 дерево
+const woodRows = [
+  ['Д01','Доска полка верхнего, абаш/липа 28×90', 6, '1984 × 90', 'фаска 3 мм все рёбра'],
+  ['Д02','Доска ступени нижней, абаш/липа 28×90', 4, '1037 × 90', 'фаска 3 мм'],
+  ['Д03','Поперечина полка, брус осина 45×70', 4, '600 × 70', 'шаг 640'],
+  ['Д04','Поперечина ступени, брус осина 45×70', 3, '400 × 70', ''],
+  ['Д05','Опорный брус на стену, осина 45×70', 1, '1984 × 70', '4 самореза 6×120 в стойки задней стены'],
+  ['Д06','Ригель передний полка, осина 45×70', 1, '1984 × 70', ''],
+  ['Д07','Ригели ступени, осина 45×70', 2, '1037 × 70', 'передний и задний'],
+  ['Д08','Стойка полка, брус осина 45×70', 3, '862 × 70', 'на пол под трапом'],
+  ['Д09','Стойка ступени, брус осина 45×70', 2, '362 × 70', ''],
+  ['Д10','Ограждение печи: стойка, липа 45×45', 3, '1050 × 45', 'в 100 мм от корпуса печи'],
+  ['Д11','Ограждение печи: рейка, липа 20×45', 6, '≈ 780 × 45', '3 ряда на 2 стороны'],
+  ['Д12','Трап, лиственница 28×90 на лагах 40×40', 2, '1165 × 887', 'съёмные секции А1, А2'],
+  ['Д13','Трап, лиственница 28×90 на лагах 40×40', 1, '790 × 965', 'секция Б у полка'],
+  ['Д14','Добор двери, осина 20×133', 3, '1910 / 1910 / 750', ''],
+  ['Д15','Наличник, осина 20×70', 6, 'по месту', 'дверь и окно с двух сторон'],
+  ['Д16','Обрешётка 20×40, сосна', '—', `${fmt(T.battenL,1)} п.м`, 'по осям стоек, на потолке шаг ≤ 500'],
+  ['Д17','Вагонка 14×96, осина/липа', '—', `${fmt(T.liningA,1)} м²`, 'на стенах горизонтально, на потолке вдоль X'],
+];
+$('#detWood').innerHTML = woodRows.map(r => `<div><b>${r[0]}</b><span>${r[1]}: ${r[2]} шт. — ${r[3]} мм (Кромка: шлифовка P120${r[4]?'; '+r[4]:''})</span></div>`).join('');
+// 3.4 массы
+$('#weights tbody').innerHTML = M.casWeight.map(c => `<tr><td class="mono">${c.code}</td><td>${esc(c.name)}</td><td class="num">${c.ribs}</td><td class="num">${fmt(c.kg,1)}</td><td>${c.kg>70?'3 человека, сборка на месте':c.kg>45?'2 человека':'1–2 человека'}</td></tr>`).join('');
+
+// 3.5 раскрой
+function sheetSVG(sh){
+  const pts = pl => pl.map(p => `${p[0]+0},${P.sheetW - p[1]}`).join(' ');
+  let s = `<svg viewBox="-10 -10 ${P.sheetL+20} ${P.sheetW+20}" aria-label="Лист ${sh.n}"><rect x="0" y="0" width="${P.sheetL}" height="${P.sheetW}" fill="none" stroke="var(--muted)" stroke-width="4"/>`;
+  sh.parts.forEach(({p,x,y}) => {
+    const tr = pl => pl.map(q => [q[0]+x, q[1]+y]);
+    const isSkin = p.kind==='skin';
+    p.outer.forEach(pl => s += `<polygon points="${pts(tr(pl))}" fill="${isSkin?'var(--osb-soft)':'color-mix(in srgb,var(--steel) 22%,transparent)'}" stroke="${isSkin?'var(--osb)':'var(--steel)'}" stroke-width="4"/>`);
+    p.inner.forEach(q => s += `<polygon points="${pts(tr(q.poly))}" fill="var(--sheet)" stroke="var(--ink)" stroke-width="${q.type==='slot'?2:4}"/>`);
+    p.circles.filter(c=>c.type==='bolt').forEach(c => s += `<circle cx="${c.x+x}" cy="${P.sheetW-(c.y+y)}" r="14" fill="var(--fire)"/>`);
+    const fs = isSkin ? 90 : 60;
+    const lx = x + (isSkin ? 60 : 130), ly = P.sheetW - (y + p.h/2) + fs*0.35;
+    if (isSkin || p.w > 300) s += `<text x="${lx}" y="${ly}" font-family="JetBrains Mono, monospace" font-size="${fs}" font-weight="600" fill="var(--ink)">${p.id}${p.mark?' · '+p.mark:''}</text>`;
+  });
+  return s + '</svg>';
+}
+$('#sheets').innerHTML = M.sheets.map(sh => `<div class="sh"><header><b>Лист ${String(sh.n).padStart(2,'0')}</b><span>${sh.parts.length} дет. · ${fmt(sh.util*100)}%</span></header>${sheetSVG(sh)}<button type="button" data-sheet="${sh.n}">Копировать DXF листа ${sh.n}</button></div>`).join('');
+$('#sheets').addEventListener('click', e => {
+  const b = e.target.closest('button[data-sheet]'); if (!b) return;
+  const sh = M.sheets[+b.dataset.sheet - 1], txt = M.dxfSheet(sh), label = b.textContent;
+  const fb = () => { const ta = $('#fallback'); ta.hidden = false; ta.value = txt; ta.focus(); ta.select(); b.textContent = 'Выделено ниже: Ctrl+C, сохранить как .dxf'; };
+  try { navigator.clipboard.writeText(txt).then(() => { b.textContent = `DXF листа ${sh.n} скопирован`; setTimeout(()=>b.textContent=label, 2200); }, fb); } catch(_) { fb(); }
+});
+
+// 4 присадка
+$('#drillList').innerHTML = [
+  `Ø9 сквозное — стыковые рёбра (позиции ${M.ribGroups.filter(g=>g.holes).map(g=>g.mark).join(', ')}): ${fmt(T.bolts*2)} отв., шаг ≤ 400, 100 мм от торцов, ось на 75 мм от лица обшивки. Отверстия парных рёбер совпадают, так как парные рёбра одной длины.`,
+  `Пазы 18.5×60.5 сквозные в обшивке по осям рёбер: ${fmt(M.skinParts.reduce((a,s)=>a+s.slots.length,0))} шт. Паз не ставится ближе 30 мм к краю листа или проёму. Там ребро крепится только саморезами.`,
+  `Разметка Ø3×2 под саморезы 4.5×50: ${fmt(T.skinScrews)} точек. Шаг 150, 40 мм от торцов рёбер. На нахлёстах — линия на 93 мм от низа обшивки (в балки пола) и на 75 мм от верха (в балки потолка). На боковых стенах — линия на 75 мм от торца (в крайние стойки фасада и задней стены). При монтаже рассверлите Ø3 на всю обшивку.`,
+  `Проёмы в обшивке: дверь 710×1910 (ФС1, от низа 186), окно 410×410 (ЛВ1, от низа 1286), приток 150×150 (ПР1, от низа 486), вытяжка 150×150 (ЗД1, от низа 1886), дымоход 380×380 (ПТ1, центр X 1713 / Z 687).`,
+  `Стыки рёбер внутри кассеты: 2 самореза 5×80 в каждый торец, предварительно Ø3.5. Кромку ОСП не раскалывать: от края ≥ 25 мм.`,
+].map(s=>`<li>${s}</li>`).join('');
+$('#drill tbody').innerHTML = M.ribGroups.map(g => {
+  const it = g.items[0], tabs = [...it.tabsB, ...(it.tabsT.length?['| верх: '+it.tabsT.join(', ')]:[])];
+  return `<tr><td class="mono">${g.mark}</td><td class="num">${g.L}×${g.h}</td><td class="num">${g.items.length}</td><td class="mono">${tabs.length?tabs.join(', '):'— (только саморезы)'}</td><td class="mono">${it.holes.length?it.holes.join(', '):'—'}</td></tr>`;
+}).join('');
+
+// 5 сборка
+$('#assembly').innerHTML = [
+  `<b>Базовый каркас.</b> Выставьте 9 опор по сетке X 100 / 1200 / 2300 × Z 100 / 1100 / 2100 в один уровень (±2 мм), сверху гидроизоляция. Кассеты собирайте на ровном столе. Нанесите клей ПУ на шипы и кромки рёбер, вставьте рёбра в пазы обшивки, стяните торцы рёбер саморезами 5×80, затем саморезами 4.5×50 по разметке с наружной стороны. Перед отверждением клея проверьте диагонали (разница ≤ 2 мм). Пол ПЛ1 и ПЛ2: уложите вату 150 и закройте верхней обшивкой ПЛ*-ОВ. Поставьте пол на опоры, проложите ленту EPDM в стык и стяните стыковые балки болтами М8.`,
+  `<b>Стены и потолок.</b> Порядок: ЗД1 → ЗД2 → ЛВ2 → ПР2 → ЛВ1 → ПР1 → ФС1 → ФС2. Каждую стену ставьте нижней обвязкой на пол, обшивка снаружи перекрывает торец пола. Обвязку крепите саморезами 5×90 через 300 мм, обшивку — в балки пола по линии разметки. Соседние кассеты стягивайте болтами М8 через стыковые стойки, обшивку боковых стен прикручивайте к крайним стойкам фасада и задней стены. Во внутренних углах поставьте по 4 уголка 90×90×65. Потолок ПТ1 и ПТ2 поднимите на стены рёбрами вниз, стяните болтами и закрепите через верхнюю обвязку стен (5×90) и по верхней линии разметки обшивки стен. Наружные торцы и швы загрунтуйте, кровлю закройте мембраной или профлистом.`,
+  `<b>Внутреннее наполнение.</b> Электрика в металлорукаве, светильник на уровне ниже полка. Базальтовая вата 150 в стены и потолок враспор, проёмы обрамите. Фольгу кладите на рёбра внахлёст 100 мм, все швы проклейте алюминиевым скотчем, фольгу заведите в проёмы. Обрешётку 20×40 ставьте по осям стоек, на потолке поперёк балок с шагом ≤ 500. Затем экраны AISI 430 на базальтовом картоне на керамических втулках 25 мм (правая стена Z 300–1150, фасад X 1300–2167, высота до 1800; потолок 900×900 над печью). Вагонку ставьте сначала на потолок, потом на стены сверху вниз, с зазором 5 мм у пола. Мембрану пола заведите на стены на 100 мм. Основание печи: ЛСУ 2×10 + сталь 1 мм, притопочный лист 400×400. Затем полок и ступень (Д01–Д09), трапы (Д12–Д13), ограждение печи (Д10–Д11).`,
+  `<b>Фасады и фурнитура.</b> Дверь 700×1900: коробку выставьте по уровню в проёме 710×1910, зазоры запените, поставьте доборы и наличники. Окно 400×400 ставится так же. Решётки притока и вытяжки — в короба из вагонки. Печь: поставьте на основание в 260 мм от экранов, по паспорту печи. Дымоход: моно Ø115 1 м, затем сэндвич Ø115/200 через ППУ 500×500 с базальтовой засыпкой, на кровле мастер-флеш, высота над кровлей ≥ 500 мм, сверху искрогаситель. Снаружи — фасадная краска для ОСП или планкен по ветрозащите. Первая протопка: 2–3 часа без людей с открытыми продухами, затем проветривание. После этого проверьте швы фольги и затяжку болтов.`,
+].map(s=>`<li>${s}</li>`).join('');
+
+/* ================= 3D ================= */
+if (!window.THREE) { $('#hint').textContent = '3D-библиотека не загрузилась. Документация ниже доступна полностью.'; return; }
+const S = 0.001, E = 1500;
+const stage = $('#stage');
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(36, 1.6, 0.05, 80);
+const HOME = { pos:new THREE.Vector3(-3.6, 3.3, -5.4), tgt:new THREE.Vector3(1.2, 1.15, 1.1) };
+camera.position.copy(HOME.pos);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.tgt); controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI*0.52; controls.minDistance = 1.2; controls.maxDistance = 18;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8c7b66, 0.72));
+const sun = new THREE.DirectionalLight(0xfff6ea, 0.9);
+sun.position.set(-4.5, 7.5, -3.5); sun.castShadow = true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera, {left:-6,right:6,top:6,bottom:-6,near:1,far:25}); sun.shadow.bias = -0.0004;
+sun.target.position.set(1.2,0,1.1); scene.add(sun, sun.target);
+const fillL = new THREE.DirectionalLight(0xe6eef5, 0.35); fillL.position.set(6, 3, 6); scene.add(fillL);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({opacity:0.22}));
+ground.rotation.x = -Math.PI/2; ground.position.y = -0.15; ground.receiveShadow = true; scene.add(ground);
+
+function themeColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const bg = new THREE.Color(cs.getPropertyValue('--stage').trim() || '#dde3e2');
+  scene.background = bg; scene.fog = new THREE.Fog(bg, 14, 34);
+}
+themeColors();
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', themeColors);
+new MutationObserver(themeColors).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+
+/* текстуры */
+function canvasTex(w, h, draw, rep){
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const tx = new THREE.CanvasTexture(c); tx.wrapS = tx.wrapT = THREE.RepeatWrapping; tx.encoding = THREE.sRGBEncoding;
+  tx.anisotropy = 4; if (rep) tx.repeat.set(rep[0], rep[1]); return tx;
+}
+let seed = 7; const rnd = () => (seed = (seed*16807) % 2147483647) / 2147483647;
+const osbDraw = (g,w,h) => {
+  g.fillStyle = '#c99a5e'; g.fillRect(0,0,w,h);
+  const cols = ['#b98546','#dcb67c','#a7733a','#e6c793','#9a6631','#d2a465'];
+  for (let i=0;i<1700;i++){
+    g.save(); g.translate(rnd()*w, rnd()*h); g.rotate((rnd()-0.5)*1.2 + (rnd()<0.5?0:Math.PI/2)*0.15);
+    g.globalAlpha = 0.55 + rnd()*0.4; g.fillStyle = cols[(rnd()*cols.length)|0];
+    const L = 18 + rnd()*60, W = 5 + rnd()*12; g.fillRect(-L/2,-W/2,L,W); g.restore();
+  }
+};
+const osbTex = canvasTex(512,512, osbDraw, [1/0.7, 1/0.7]);
+const osbRibTex = canvasTex(512,512, osbDraw, [1,1]);
+const liningTex = canvasTex(256,512, (g,w,h) => {
+  const n = 4, bh = h/n;
+  for (let i=0;i<n;i++){
+    g.fillStyle = ['#e9d3a8','#e4cb9c','#eed9b2','#e1c795'][i]; g.fillRect(0,i*bh,w,bh);
+    g.strokeStyle = 'rgba(150,110,60,.22)'; g.lineWidth = 1;
+    for (let k=0;k<7;k++){ g.beginPath(); const y = i*bh + 8 + rnd()*(bh-16); g.moveTo(0,y); g.bezierCurveTo(w*.3,y+rnd()*6-3,w*.7,y+rnd()*6-3,w,y+rnd()*4-2); g.stroke(); }
+    g.fillStyle = 'rgba(90,60,30,.55)'; g.fillRect(0,i*bh,w,3);
+  }
+}, [1/1.2, 1/0.384]);
+const woolTex = canvasTex(256,256,(g,w,h) => {
+  g.fillStyle = '#c8b273'; g.fillRect(0,0,w,h);
+  for (let i=0;i<2600;i++){ g.fillStyle = `rgba(${rnd()<.5?'120,100,50':'235,220,170'},${0.15+rnd()*0.3})`; g.fillRect(rnd()*w,rnd()*h,1+rnd()*5,1); }
+}, [1/0.5, 1/0.5]);
+
+const mat = {
+  skin: new THREE.MeshStandardMaterial({map:osbTex, roughness:.85}),
+  rib: new THREE.MeshStandardMaterial({map:osbRibTex, roughness:.9, color:0xf2e2c8}),
+  insul: new THREE.MeshStandardMaterial({map:woolTex, roughness:1}),
+  foil: new THREE.MeshStandardMaterial({color:0xdfe4e8, metalness:.45, roughness:.3, side:THREE.DoubleSide}),
+  batten: new THREE.MeshStandardMaterial({color:0xd8b67f, roughness:.8}),
+  lining: new THREE.MeshStandardMaterial({map:liningTex, roughness:.7}),
+  shelf: new THREE.MeshStandardMaterial({color:0xeccfa0, roughness:.6}),
+  frame: new THREE.MeshStandardMaterial({color:0xd9b98a, roughness:.7}),
+  trap: new THREE.MeshStandardMaterial({color:0xb07c4b, roughness:.7}),
+  steel: new THREE.MeshStandardMaterial({color:0xb8bfc4, metalness:.55, roughness:.35}),
+  stove: new THREE.MeshStandardMaterial({color:0x2b2c2e, metalness:.35, roughness:.55}),
+  stone: new THREE.MeshStandardMaterial({color:0x5d6064, roughness:.95, flatShading:true}),
+  glass: new THREE.MeshStandardMaterial({color:0x8a6a45, transparent:true, opacity:.42, roughness:.1, metalness:.1}),
+  glassClear: new THREE.MeshStandardMaterial({color:0xaed2e0, transparent:true, opacity:.35, roughness:.05}),
+  fire: new THREE.MeshStandardMaterial({color:0xff7a1a, emissive:0xff5a00, emissiveIntensity:1.1}),
+  concrete: new THREE.MeshStandardMaterial({color:0x9a9994, roughness:1}),
+  membrane: new THREE.MeshStandardMaterial({color:0x3d4449, roughness:.8}),
+  lsu: new THREE.MeshStandardMaterial({color:0xe7e4dc, roughness:.9}),
+  lamp: new THREE.MeshStandardMaterial({color:0xfff1d0, emissive:0xffd890, emissiveIntensity:.8}),
+};
+
+const root = new THREE.Group(); scene.add(root);
+const parts = [], pickables = [];
+const V3 = a => new THREE.Vector3(a[0],a[1],a[2]);
+function register(obj, o){
+  const g = new THREE.Group(); g.add(obj); root.add(g);
+  const part = Object.assign({g, dir:new THREE.Vector3()}, o); parts.push(part);
+  obj.traverse(m => { if (m.isMesh){ m.castShadow = m.receiveShadow = true; m.userData.part = part; pickables.push(m); } });
+  return part;
+}
+function box(x0,x1,y0,y1,z0,z1,m){
+  const geo = new THREE.BoxGeometry(Math.abs(x1-x0)*S, Math.abs(y1-y0)*S, Math.abs(z1-z0)*S);
+  const me = new THREE.Mesh(geo, m); me.position.set((x0+x1)/2*S,(y0+y1)/2*S,(z0+z1)/2*S); return me;
+}
+function toW(c,u,v,n){ return [c.O[0]+c.U[0]*u+c.V[0]*v+c.N[0]*n, c.O[1]+c.U[1]*u+c.V[1]*v+c.N[1]*n, c.O[2]+c.U[2]*u+c.V[2]*v+c.N[2]*n]; }
+function localBox(c,r,n0,n1,m){
+  const a = toW(c,r.u0,r.v0,n0), b = toW(c,r.u1,r.v1,n1);
+  return box(Math.min(a[0],b[0]),Math.max(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[1],b[1]),Math.min(a[2],b[2]),Math.max(a[2],b[2]),m);
+}
+function shapeRect(r, holes){
+  const sh = new THREE.Shape(); const h0 = [], notch = [];
+  holes.forEach(o => {
+    const q = {u0:Math.max(o.u0,r.u0), u1:Math.min(o.u1,r.u1), v0:Math.max(o.v0,r.v0), v1:Math.min(o.v1,r.v1)};
+    if (q.u1-q.u0 <= 0 || q.v1-q.v0 <= 0) return;
+    if (q.v0 <= r.v0 + 0.5) notch.push(q); else h0.push(q);
+  });
+  notch.sort((a,b)=>a.u0-b.u0);
+  sh.moveTo(r.u0*S, r.v0*S);
+  notch.forEach(q => { sh.lineTo(q.u0*S, r.v0*S); sh.lineTo(q.u0*S, q.v1*S); sh.lineTo(q.u1*S, q.v1*S); sh.lineTo(q.u1*S, r.v0*S); });
+  sh.lineTo(r.u1*S, r.v0*S); sh.lineTo(r.u1*S, r.v1*S); sh.lineTo(r.u0*S, r.v1*S); sh.lineTo(r.u0*S, r.v0*S);
+  h0.forEach(q => { const p = new THREE.Path(); p.moveTo(q.u0*S,q.v0*S); p.lineTo(q.u0*S,q.v1*S); p.lineTo(q.u1*S,q.v1*S); p.lineTo(q.u1*S,q.v0*S); p.lineTo(q.u0*S,q.v0*S); sh.holes.push(p); });
+  return sh;
+}
+function slab(c, r, holes, n0, n1, m){
+  const geo = new THREE.ExtrudeGeometry(shapeRect(r, holes), {depth:(n1-n0)*S, bevelEnabled:false});
+  geo.translate(0,0,n0*S);
+  const me = new THREE.Mesh(geo, m); me.matrixAutoUpdate = false;
+  const mx = new THREE.Matrix4(); mx.makeBasis(V3(c.U), V3(c.V), V3(c.N)); mx.setPosition(c.O[0]*S, c.O[1]*S, c.O[2]*S);
+  me.matrix.copy(mx); return me;
+}
+const dimTxt = (a,b,c) => [a,b,c].map(Math.round).sort((x,y)=>y-x).join(' × ') + ' мм';
+const LAYERS = [
+  ['skin','Обшивка ОСП', '#c99a5e'], ['rib','Рёбра ОСП', '#a7733a'], ['insul','Утеплитель', '#c8b273'],
+  ['foil','Фольга', '#b8bfc4'], ['batten','Обрешётка', '#d8b67f'], ['lining','Вагонка', '#e9d3a8'],
+  ['fill','Печь, полки, двери', '#2b2c2e'], ['base','Основание', '#9a9994'],
+];
+const F = {wall:{skin:1, rib:.7, insul:.48, foil:.36, batten:.26, lining:.16}, roof:{skin:1, rib:.7, insul:.48, foil:.36, batten:.26, lining:.16}};
+
+M.cassettes.forEach(c => {
+  const out = V3(c.N).multiplyScalar(-1);
+  let spread = new THREE.Vector3();
+  if (c.group === 'wall'){ const mid = (c.face==='front'||c.face==='back') ? P.W/2 : P.D/2; spread = V3(c.U).multiplyScalar(Math.sign((c.reg.u0+c.reg.u1)/2 - mid) * 240); }
+  else { spread = V3(c.V).multiplyScalar(Math.sign((c.reg.v0+c.reg.v1)/2 - P.D/2) * 240); }
+  const dir = f => out.clone().multiplyScalar(E*f).add(spread);
+  const face = c.face;
+  c.skins.forEach((s, si) => {
+    const f = c.group === 'floor' ? (si ? .34 : 1) : 1;
+    const sp = M.skinParts.find(p => p.cas === c.code && p.rect === s);
+    const me = slab(c, s, c.openings, s.n, s.n + P.t, mat.skin);
+    register(me, {layer:'skin', face, dir:dir(f), title: sp.id, sub:`${sp.role} · кассета ${c.code} «${c.name}»`, spec:`ОСП-3 18 · ${dimTxt(s.u1-s.u0, s.v1-s.v0, 18)} · пазов ${sp.slots.length}`});
+  });
+  c.ribs.forEach((r, i) => {
+    const rp = M.ribParts.find(p => p.id === `${c.code}-${String(i+1).padStart(2,'0')}`);
+    const me = localBox(c, r, 0, P.rib, mat.rib);
+    register(me, {layer:'rib', face, dir:dir(c.group==='floor'?.7:.7), title:`${rp.id} · ${rp.mark}`, sub:`${rp.role} · кассета ${c.code}`, spec:`ОСП-3 18 · ${rp.L} × 150 мм${rp.holes.length?` · Ø9 × ${rp.holes.length}`:''}${(rp.tabsB.length+rp.tabsT.length)?` · шипов ${rp.tabsB.length+rp.tabsT.length}`:''}`});
+  });
+  const ins = slab(c, c.reg, c.openings, 3, P.rib-3, mat.insul);
+  register(ins, {layer:'insul', face, dir:dir(c.group==='floor'?.52:.48), title:`Утеплитель ${c.code}`, sub:'Базальтовая вата 35–45 кг/м³', spec:`150 мм · ${dimTxt(c.reg.u1-c.reg.u0, c.reg.v1-c.reg.v0, 150)}`});
+  if (c.lining){
+    register(slab(c, c.reg, c.openings, P.rib, P.rib+1, mat.foil), {layer:'foil', face, dir:dir(.36), title:`Фольга ${c.code}`, sub:'Пароизоляция, нахлёст 100, скотч Al', spec:'50 мкм'});
+    const bg = new THREE.Group();
+    c.battens.forEach(b => bg.add(localBox(c, b, P.rib+1, P.rib+21, mat.batten)));
+    register(bg, {layer:'batten', face, dir:dir(.26), title:`Обрешётка ${c.code}`, sub:`${c.battens.length} брусков 20×40`, spec:'Сосна, вентзазор 20 мм'});
+    register(slab(c, c.lining, c.openings, P.rib+21, P.rib+35, mat.lining), {layer:'lining', face, dir:dir(.16), title:`Вагонка ${c.code}`, sub:'Осина / липа 14×96, кляймер', spec: dimTxt(c.lining.u1-c.lining.u0, c.lining.v1-c.lining.v0, 14)});
+  }
+});
+
+/* наполнение */
+const D = (x,y,z,f) => new THREE.Vector3(x,y,z).normalize().multiplyScalar(E*f);
+const grp = (...ms) => { const g = new THREE.Group(); ms.forEach(m => g.add(m)); return g; };
+register(box(I.x0, I.x1, 186, 188, I.z0, I.z1, mat.membrane), {layer:'fill', dir:D(0,-1,0,.2), title:'Мембрана пола', sub:'ПВХ 1.5 мм, заведена на стены на 100 мм', spec:dimTxt(I.x1-I.x0, I.z1-I.z0, 1.5)});
+register(grp(box(1388, 2038, 188, 208, 362, 1012, mat.lsu), box(1388, 2038, 208, 210, 362, 1012, mat.steel), box(1088, 1388, 188, 190, 487, 887, mat.steel)),
+  {layer:'fill', dir:D(0,-1,0,.12), title:'Основание печи', sub:'ЛСУ 2×10 + сталь 1 мм, притопочный лист', spec:'650 × 650 мм, лист 300 × 400 мм'});
+function trap(x0,x1,z0,z1,name){
+  const g = new THREE.Group(); const n = Math.floor((z1-z0+10)/100);
+  for (let i=0;i<n;i++){ const z = z0 + i*100; g.add(box(x0, x1, 190, 216, z, z+90, mat.trap)); }
+  g.add(box(x0+60, x0+100, 188, 190, z0, z1, mat.trap)); g.add(box(x1-100, x1-60, 188, 190, z0, z1, mat.trap));
+  register(g, {layer:'fill', dir:D(0,-1,0,.07), title:name, sub:'Лиственница 28×90, зазор 10, съёмный', spec:dimTxt(x1-x0, z1-z0, 28)});
+}
+trap(213, 1378, 213, 1100, 'Трап А1'); trap(213, 1378, 1110, 1987, 'Трап А2'); trap(1398, 2187, 1022, 1987, 'Трап Б');
+
+// печь
+(function(){
+  const g = new THREE.Group(), x0 = 1488, x1 = 1938, z0 = 462, z1 = 912, cx = 1713, cz = 687;
+  [[x0+20,z0+20],[x1-40,z0+20],[x0+20,z1-40],[x1-40,z1-40]].forEach(([x,z]) => g.add(box(x, x+20, 210, 300, z, z+20, mat.stove)));
+  g.add(box(x0, x1, 300, 960, z0, z1, mat.stove));
+  g.add(box(x0-8, x0, 430, 720, z0+70, z1-70, mat.glass));
+  g.add(box(x0-2, x0, 470, 560, z0+110, z1-110, mat.fire));
+  g.add(box(x0-40, x0-8, 330, 400, cz-120, cz+120, mat.stove));
+  [[x0,z0],[x1-10,z0],[x0,z1-10],[x1-10,z1-10]].forEach(([x,z]) => g.add(box(x, x+10, 960, 1160, z, z+10, mat.steel)));
+  const sg = new THREE.DodecahedronGeometry(0.055, 0);
+  for (let i=0;i<46;i++){
+    const st = new THREE.Mesh(sg, mat.stone); const s = 0.7 + rnd()*0.7; st.scale.set(s, s*0.8, s);
+    let x, z; do { x = x0+50 + rnd()*(x1-x0-100); z = z0+50 + rnd()*(z1-z0-100); } while (Math.hypot(x-cx, z-cz) < 90);
+    st.position.set(x*S, (990 + rnd()*150)*S, z*S); st.rotation.set(rnd()*3, rnd()*3, rnd()*3); g.add(st);
+  }
+  register(g, {layer:'fill', dir:new THREE.Vector3(), title:'Печь-каменка', sub:'Сталь, на 8–12 м³, топка из парилки', spec:'450 × 450 × 950 мм, камни 40–60 кг'});
+  const cyl = (r, y0, y1, m, seg=28) => { const me = new THREE.Mesh(new THREE.CylinderGeometry(r*S, r*S, (y1-y0)*S, seg), m); me.position.set(cx*S, (y0+y1)/2*S, cz*S); return me; };
+  register(cyl(57.5, 960, 1950, mat.steel), {layer:'fill', dir:D(0,1,0,.3), title:'Дымоход моно Ø115', sub:'AISI 430, 1 м, сквозь камни', spec:'L 1000 мм'});
+  const sandwich = grp(cyl(100, 1950, 3100, mat.steel));
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(160*S, 110*S, 28), mat.steel); cap.position.set(cx*S, 3240*S, cz*S); sandwich.add(cap);
+  register(sandwich, {layer:'fill', dir:D(0,1,0,.82), title:'Дымоход сэндвич Ø115/200', sub:'AISI 304/430, выше кровли ≥ 500 мм, искрогаситель', spec:'L 2000 мм'});
+  register(grp(box(cx-250, cx+250, I.y1-6, I.y1, cz-250, cz+250, mat.steel), box(cx-450, cx+450, I.y1-31, I.y1-26, cz-450, cz+450, mat.steel)),
+    {layer:'fill', dir:D(0,-1,0,-.12), title:'ППУ 500×500 и потолочный экран', sub:'Проход через потолок, базальтовая засыпка', spec:'экран 900 × 900 мм на втулках 25'});
+  const flash = new THREE.Mesh(new THREE.CylinderGeometry(150*S, 260*S, 60*S, 28), mat.membrane); flash.position.set(cx*S, 2484*S, cz*S);
+  register(flash, {layer:'fill', dir:D(0,1,0,1.05), title:'Мастер-флеш', sub:'Кровельная проходка, силикон +250 °C', spec:'Ø200'});
+  // экраны
+  register(box(2167, 2172, 216, 1800, 300, 1150, mat.steel), {layer:'fill', face:'right', dir:D(1,0,0,.1), title:'Экран правой стены', sub:'AISI 430 0.5 + базальтовый картон 5, зазор 25', spec:'850 × 1584 мм'});
+  register(box(1300, 2167, 216, 1800, 228, 233, mat.steel), {layer:'fill', face:'front', dir:D(0,0,-1,.1), title:'Экран фасада', sub:'AISI 430 0.5 + базальтовый картон 5, зазор 25', spec:'867 × 1584 мм'});
+  // ограждение
+  const rg = new THREE.Group(), px = 1366, pz = 1012;
+  [[px, pz],[px, 250],[2120, pz]].forEach(([x,z]) => rg.add(box(x, x+45, 216, 1266, z, z+45, mat.frame)));
+  [500, 800, 1100].forEach(y => { rg.add(box(px+10, px+35, y, y+45, 295, pz, mat.frame)); rg.add(box(px+45, 2120, y, y+45, pz+12, pz+32, mat.frame)); });
+  register(rg, {layer:'fill', dir:new THREE.Vector3(), title:'Ограждение печи Д10–Д11', sub:'Липа, в 100 мм от корпуса', spec:'H 1050 мм'});
+})();
+
+// полок и ступень
+(function(){
+  const up = new THREE.Group(), yT = I.y0 + 1000;
+  for (let i=0;i<6;i++){ const z = 1397 + i*102; up.add(box(208, 2192, yT-28, yT, z, z+90, mat.shelf)); }
+  [240, 880, 1520, 2160].forEach(x => up.add(box(x-22, x+23, yT-98, yT-28, 1397, 1997, mat.frame)));
+  up.add(box(208, 2192, yT-168, yT-98, 1952, 1997, mat.frame));
+  up.add(box(208, 2192, yT-168, yT-98, 1397, 1442, mat.frame));
+  [225, 1180, 2150].forEach(x => up.add(box(x-22, x+23, 188, yT-168, 1442, 1512, mat.frame)));
+  register(up, {layer:'fill', dir:D(0,.25,1,.1), title:'Полок верхний Д01, Д03, Д05, Д06, Д08', sub:'Абаш / липа 28×90, каркас осина 45×70', spec:'1984 × 600 мм, H 1000 от трапа'});
+  const lo = new THREE.Group(), yL = I.y0 + 500;
+  for (let i=0;i<4;i++){ const z = 997 + i*103; lo.add(box(208, 1245, yL-28, yL, z, z+90, mat.shelf)); }
+  [240, 735, 1215].forEach(x => lo.add(box(x-22, x+23, yL-98, yL-28, 997, 1397, mat.frame)));
+  lo.add(box(208, 1245, yL-168, yL-98, 997, 1042, mat.frame)); lo.add(box(208, 1245, yL-168, yL-98, 1352, 1397, mat.frame));
+  [225, 1200].forEach(x => lo.add(box(x-22, x+23, 188, yL-168, 1042, 1112, mat.frame)));
+  register(lo, {layer:'fill', dir:D(0,.2,1,.06), title:'Ступень нижняя Д02, Д04, Д07, Д09', sub:'Абаш / липа 28×90, каркас осина 45×70', spec:'1037 × 400 мм, H 500 от трапа'});
+})();
+
+// дверь
+(function(){
+  const o = M.openings.door, g = new THREE.Group(), z0 = 133, z1 = 203;
+  g.add(box(o.u0, o.u0+40, o.v0, o.v1, z0, z1, mat.frame)); g.add(box(o.u1-40, o.u1, o.v0, o.v1, z0, z1, mat.frame));
+  g.add(box(o.u0, o.u1, o.v1-40, o.v1, z0, z1, mat.frame)); g.add(box(o.u0+40, o.u1-40, o.v0, o.v0+20, z0, z1, mat.frame));
+  g.add(box(o.u0+43, o.u1-43, o.v0+24, o.v1-43, 186, 194, mat.glass));
+  g.add(box(o.u1-110, o.u1-80, o.v0+850, o.v0+1150, 160, 186, mat.frame));
+  g.add(box(o.u0-20, o.u0, o.v0, o.v1, 18, 133, mat.frame)); g.add(box(o.u1, o.u1+20, o.v0, o.v1, 18, 133, mat.frame)); g.add(box(o.u0-20, o.u1+20, o.v1, o.v1+20, 18, 133, mat.frame));
+  register(g, {layer:'fill', face:'front', dir:D(0,0,-1,.34).add(new THREE.Vector3(-240,0,0)), title:'Дверь 700×1900', sub:'Стекло 8 мм закалённое, коробка осина, доборы Д14', spec:'проём 710 × 1910 мм'});
+  const w = M.openings.windowOp, wg = new THREE.Group();
+  wg.add(box(150, 203, w.v0, w.v0+40, w.u0, w.u1, mat.frame)); wg.add(box(150, 203, w.v1-40, w.v1, w.u0, w.u1, mat.frame));
+  wg.add(box(150, 203, w.v0, w.v1, w.u0, w.u0+40, mat.frame)); wg.add(box(150, 203, w.v0, w.v1, w.u1-40, w.u1, mat.frame));
+  wg.add(box(172, 180, w.v0+40, w.v1-40, w.u0+40, w.u1-40, mat.glassClear));
+  register(wg, {layer:'fill', face:'left', dir:D(-1,0,0,.34).add(new THREE.Vector3(0,0,-240)), title:'Окно 400×400', sub:'Закалённое стекло, рама осина', spec:'проём 410 × 410 мм'});
+  const s = M.openings.supply, ex = M.openings.exhaust;
+  register(box(2190, 2197, s.v0, s.v1, s.u0, s.u1, mat.steel), {layer:'fill', face:'right', dir:D(1,0,0,.16).add(new THREE.Vector3(0,0,-240)), title:'Приток 150×150', sub:'Решётка с задвижкой, за печью внизу', spec:'H 300 мм от пола'});
+  register(box(ex.u0, ex.u1, ex.v0, ex.v1, 1997, 2004, mat.steel), {layer:'fill', face:'back', dir:D(0,0,1,.16).add(new THREE.Vector3(-240,0,0)), title:'Вытяжка 150×150', sub:'Решётка с задвижкой, по диагонали от притока', spec:'200 мм под потолком'});
+  register(box(203, 233, 1500, 1580, 1600, 1760, mat.lamp), {layer:'fill', face:'left', dir:D(-1,0,0,.16).add(new THREE.Vector3(0,0,240)), title:'Светильник', sub:'IP54, +125 °C, ниже уровня полка', spec:'кабель РКГМ в металлорукаве'});
+})();
+
+// основание
+[100, 1200, 2300].forEach(x => [100, 1100, 2100].forEach(z => {
+  register(box(x-100, x+100, -150, 0, z-100, z+100, mat.concrete), {layer:'base', dir:new THREE.Vector3((x-1200)*0.3, -E*1.15, (z-1100)*0.3), title:'Опора 200×200', sub:'Блок бетонный / регулируемая опора, гидроизоляция', spec:`X ${x} · Z ${z}`});
+}));
+
+/* ===== слои, срез, взрыв ===== */
+const state = {e:0, target:0, from:0, t0:0, dur:1300, cut:false, on:Object.fromEntries(LAYERS.map(l=>[l[0], true]))};
+$('#layers').innerHTML = LAYERS.map(([k,n,c]) => `<label class="chip" for="ly-${k}"><input type="checkbox" id="ly-${k}" data-layer="${k}" checked><i class="sw" style="background:${c}"></i>${n}</label>`).join('');
+const CUTF = new Set(['front','left','roof']);
+function applyVis(){ parts.forEach(p => { p.g.visible = state.on[p.layer] && !(state.cut && CUTF.has(p.face)); }); }
+$('#layers').addEventListener('change', e => { const k = e.target.dataset.layer; if (k){ state.on[k] = e.target.checked; applyVis(); } });
+$('#btnCut').addEventListener('click', e => { state.cut = !state.cut; e.currentTarget.setAttribute('aria-pressed', state.cut); e.currentTarget.classList.toggle('primary', state.cut); applyVis(); });
+$('#btnView').addEventListener('click', () => { zoomK = 1; state.e = state.target = 0; state.t0 = 0; applyExplode(); btnE.textContent = 'Разнести'; camera.position.copy(HOME.pos); controls.target.copy(HOME.tgt); controls.update(); });
+const btnE = $('#btnExplode'), rng = $('#exp');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function toggle(){ animateTo(state.target > 0.5 ? 0 : 1); }
+function animateTo(v){ state.from = state.e; state.target = v; state.t0 = performance.now(); if (reduce) state.dur = 1; btnE.textContent = v > 0.5 ? 'Собрать' : 'Разнести'; }
+btnE.addEventListener('click', toggle);
+rng.addEventListener('input', () => { state.e = state.target = state.from = rng.value/100; state.t0 = 0; btnE.textContent = state.e > 0.5 ? 'Собрать' : 'Разнести'; });
+function applyExplode(){
+  const k = state.e;
+  parts.forEach(p => p.g.position.set(p.dir.x*S*k, p.dir.y*S*k, p.dir.z*S*k));
+  rng.value = Math.round(k*100);
+  const z = 1 + 0.55*k, off = camera.position.clone().sub(controls.target); camera.position.copy(controls.target).add(off.multiplyScalar(z/zoomK)); zoomK = z;
+}
+let zoomK = 1;
+const ease = x => x < .5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2;
+
+/* ===== наведение и клик ===== */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), pickEl = $('#pick');
+const hl = new THREE.BoxHelper(undefined, 0xff8a1f); hl.visible = false; scene.add(hl);
+let down = null, hoverReq = null, lastPart = null;
+function visible(o){ while (o){ if (!o.visible) return false; o = o.parent; } return true; }
+function hitAt(cx, cy){
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((cx-r.left)/r.width)*2-1, -((cy-r.top)/r.height)*2+1);
+  ray.setFromCamera(ndc, camera);
+  return ray.intersectObjects(pickables, false).find(h => visible(h.object));
+}
+renderer.domElement.addEventListener('pointerdown', e => { down = {x:e.clientX, y:e.clientY}; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down) return; const moved = Math.hypot(e.clientX-down.x, e.clientY-down.y); down = null;
+  if (moved < 6 && hitAt(e.clientX, e.clientY)) { toggle(); $('#hint').hidden = true; }
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  const cx = e.clientX, cy = e.clientY;
+  if (hoverReq) return; hoverReq = requestAnimationFrame(() => {
+    hoverReq = null; const h = hitAt(cx, cy); const part = h && h.object.userData.part;
+    if (part !== lastPart){
+      lastPart = part;
+      if (part){ hl.setFromObject(part.g); hl.visible = true; pickEl.hidden = false; pickEl.innerHTML = `<b>${esc(part.title)}</b>${esc(part.sub||'')}<br><span>${esc(part.spec||'')}</span>`; }
+      else { hl.visible = false; pickEl.hidden = true; }
+    }
+  });
+});
+renderer.domElement.addEventListener('pointerleave', () => { lastPart = null; hl.visible = false; pickEl.hidden = true; });
+
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); camera.aspect = w/h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage); resize();
+applyVis();
+(function loop(now){
+  if (state.t0){ const x = Math.min(1, (now - state.t0)/state.dur); state.e = state.from + (state.target - state.from)*ease(x); if (x >= 1) state.t0 = 0; applyExplode(); }
+  if (lastPart && hl.visible) hl.setFromObject(lastPart.g);
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop);
+})(performance.now());
+applyExplode();
+})();
+</script>
