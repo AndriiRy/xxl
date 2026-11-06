@@ -5,19 +5,18 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const f1 = (n) => String(Math.round(n * 10) / 10).replace('.', ',');
 const ROLE_RU = { body: 'Корпус', front: 'Фасады', back: 'Задняя стенка', top: 'Столешница' };
 const EDGE_RU = { L1: 'Д1', L2: 'Д2', W1: 'Ш1', W2: 'Ш2' };
-const edgeStr = (p) => (p.edge.length ? p.edge.map((e) => EDGE_RU[e]).join('+') : '—');
-const edgeLen = (p) => p.edge.reduce((a, e) => a + (e[0] === 'L' ? p.L : p.W), 0);
+const edgeStr = (p) => (p.shape === 'poly' ? (p.edgeIdx.length ? 'рёбра ' + p.edgeIdx.join(',') : '—') : p.edge.length ? p.edge.map((e) => EDGE_RU[e]).join('+') : '—');
 
 // builds: [{item, mod, built}]
 K.cutList = function (builds, S) {
   const mats = {};
   for (const { item, built } of builds) for (const p of built.parts) {
     const m = mats[p.mat] = mats[p.mat] || { key: p.mat, md: p.md, rows: new Map(), area: 0, edgeM: 0 };
-    const key = [p.base, p.L, p.W, p.edge.join('')].join('|');
+    const key = [p.base, p.L, p.W, edgeStr(p), p.shape === 'poly' ? JSON.stringify(p.cutPts) : ''].join('|');
     let r = m.rows.get(key);
-    if (!r) { r = { name: p.base, L: p.L, W: p.W, T: p.T, edge: p.edge, qty: 0, cabs: new Set() }; m.rows.set(key, r); }
+    if (!r) { r = { name: p.base, L: p.L, W: p.W, T: p.T, es: edgeStr(p), poly: p.shape === 'poly', qty: 0, cabs: new Set() }; m.rows.set(key, r); }
     r.qty++; r.cabs.add(item.label);
-    m.area += p.L * p.W / 1e6; m.edgeM += edgeLen(p) / 1000;
+    m.area += p.L * p.W / 1e6; m.edgeM += p.edgeLen / 1000;
   }
   return Object.values(mats);
 };
@@ -49,6 +48,15 @@ K.partSVG = function (p) {
   return o;
 };
 
+K.polySVG = function (p) {
+  const pad = 22, s = Math.min(300 / p.L, 150 / p.W), P = p.cutPts, X = (v) => pad + v[0] * s, Y = (v) => pad + p.W * s - v[1] * s;
+  let o = `<svg class="psvg" width="${p.L * s + pad * 2}" height="${p.W * s + pad * 2}"><rect x="${pad}" y="${pad}" width="${p.L * s}" height="${p.W * s}" fill="none" stroke="#bbb" stroke-dasharray="3 3"/>`;
+  o += `<polygon points="${P.map((v) => X(v) + ',' + Y(v)).join(' ')}" fill="#f3efe6" stroke="#555"/>`;
+  for (const k of p.edgeIdx) { const a = P[k - 1], b = P[k % P.length]; o += `<line x1="${X(a)}" y1="${Y(a)}" x2="${X(b)}" y2="${Y(b)}" stroke="#d6336c" stroke-width="3"/>`; }
+  P.forEach((v, i) => { o += `<circle cx="${X(v)}" cy="${Y(v)}" r="2.5" fill="#1c7ed6"/><text x="${X(v) + 4}" y="${Y(v) - 4}" font-size="10" fill="#1c7ed6">${i + 1}</text>`; });
+  return o + `<text x="${pad}" y="${pad - 6}" font-size="10" fill="#555">заготовка ${f1(p.L)}×${f1(p.W)}</text></svg>`;
+};
+
 K.specHTML = function (builds, S, opts) {
   opts = opts || {};
   const L = [];
@@ -61,6 +69,7 @@ K.specHTML = function (builds, S, opts) {
     L.push(`<tr><td>${esc(item.label)}</td><td>${esc(mod.name)}</td><td>${f1(sc.W)}×${f1(H)}×${f1(sc.D)}</td><td>${f1(built.z0)}</td><td>${f1(item.x)}; ${f1(item.y)}, ${item.rot}°</td></tr>`);
   }
   L.push(`</table>`);
+  if (opts.warnings && opts.warnings.length) L.push(`<p><b>Замечания:</b></p><ul>` + opts.warnings.map((w) => `<li>${esc(w)}</li>`).join('') + `</ul>`);
   // 2
   const cl = K.cutList(builds, S), hw = K.hardwareList(builds);
   L.push(`<h2>2. Материалы и фурнитура</h2>`);
@@ -78,7 +87,7 @@ K.specHTML = function (builds, S, opts) {
   for (const m of cl) {
     L.push(`<h3>${esc(m.md.name)} — ${m.md.t} мм</h3><table><tr><th>Деталь</th><th>Шкафы</th><th>Шт</th><th>Д×Ш, мм</th><th>Кромка (${esc(m.md.edge || '—')})</th></tr>`);
     const rows = [...m.rows.values()].sort((a, b) => b.L * b.W - a.L * a.W);
-    for (const r of rows) L.push(`<tr><td>${esc(r.name)}</td><td>${esc([...r.cabs].join(', '))}</td><td>${r.qty}</td><td>${f1(r.L)} × ${f1(r.W)}</td><td>${r.edge.length ? r.edge.map((e) => EDGE_RU[e]).join('+') : '—'}</td></tr>`);
+    for (const r of rows) L.push(`<tr><td>${esc(r.name)}</td><td>${esc([...r.cabs].join(', '))}</td><td>${r.qty}</td><td>${f1(r.L)} × ${f1(r.W)}${r.poly ? ' <b>фигурная</b>' : ''}</td><td>${r.es}</td></tr>`);
     L.push(`</table>`);
   }
   // 4
@@ -102,6 +111,15 @@ K.specHTML = function (builds, S, opts) {
     }
     L.push(`</div>`);
   }
+  const figs = new Map();
+  for (const { item, built } of builds) for (const p of built.parts) if (p.shape === 'poly') {
+    const key = p.base + JSON.stringify(p.cutPts) + p.T; const g = figs.get(key) || { p, cabs: new Set(), qty: 0 }; g.qty++; g.cabs.add(item.label); figs.set(key, g);
+  }
+  if (figs.size) {
+    L.push(`<h3>Фигурные детали — раскрой по шаблону</h3><p class="note">Координаты вершин от угла заготовки (мм), розовым — кромка.</p><div class="drillgrid">`);
+    for (const { p, cabs, qty } of figs.values()) L.push(`<div class="pcard"><b>${esc(p.base)} ×${qty}</b> <span class="note">${esc([...cabs].join(', '))}; ${esc(p.md.name)} ${f1(p.T)} мм</span>${K.polySVG(p)}<ul><li>Вершины: ${p.cutPts.map((v, i) => `${i + 1}(${f1(v[0])}; ${f1(v[1])})`).join(' ')}</li><li>Кромка: ${edgeStr(p)}, ${f1(p.edgeLen / 1000)} м</li></ul></div>`);
+    L.push(`</div>`);
+  }
   // 5
   L.push(`<h2>5. Инструкция по сборке</h2>`);
   const mods = new Map(); for (const { mod } of builds) mods.set(mod.id, mod);
@@ -113,15 +131,18 @@ K.specHTML = function (builds, S, opts) {
 K.cutCSV = function (builds) {
   const rows = [['Материал', 'Деталь', 'Шкаф', 'Длина', 'Ширина', 'Толщина', 'Кромка Д1', 'Кромка Д2', 'Кромка Ш1', 'Кромка Ш2', 'Тип кромки']];
   for (const { built } of builds) for (const p of built.parts) {
-    rows.push([p.md.name, p.name, p.cab, p.L, p.W, p.T, ...['L1', 'L2', 'W1', 'W2'].map((e) => (p.edge.includes(e) ? 1 : 0)), p.md.edge || '']);
+    rows.push([p.md.name, p.name + (p.shape === 'poly' ? ' (фигурная, по шаблону)' : ''), p.cab, p.L, p.W, p.T, ...['L1', 'L2', 'W1', 'W2'].map((e) => (p.edge.includes(e) ? 1 : 0)), (p.md.edge || '') + (p.shape === 'poly' && p.edgeIdx.length ? ' рёбра ' + p.edgeIdx.join(',') : '')]);
   }
   return '﻿' + rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""').replace('.', ',') + '"').join(';')).join('\r\n');
 };
 
 K.fusionParts = function (builds) {
   const parts = [];
-  for (const { item, built } of builds) for (const b of K.worldBoxes(item, built)) parts.push({ cab: item.label, name: b.part.name, material: b.mat, min: b.mn.map(K.r1), max: b.mx.map(K.r1) });
-  return { format: 'kitchen-parts/1', units: 'mm', up: 'Z', parts };
+  for (const { item, built } of builds) for (const b of K.worldSolids(item, built)) {
+    const xs = b.pts.map((v) => v[0]), ys = b.pts.map((v) => v[1]);
+    parts.push({ cab: item.label, name: b.part.name, material: b.mat, poly: b.pts.map((v) => v.map(K.r1)), z0: K.r1(b.z0), z1: K.r1(b.z1), min: [Math.min(...xs), Math.min(...ys), b.z0].map(K.r1), max: [Math.max(...xs), Math.max(...ys), b.z1].map(K.r1) });
+  }
+  return { format: 'kitchen-parts/2', units: 'mm', up: 'Z', parts };
 };
 K.esc = esc; K.f1 = f1;
 })(window.K = window.K || {});

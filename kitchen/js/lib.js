@@ -23,6 +23,7 @@ const doorVars = [{ id: 'nd', f: 'doors>0?doors:(W>600?2:1)' }, { id: 'dw', f: '
 const legs = { name: 'Ножка регулируемая h=100', qty: '4+(W>900)*2' };
 const handle = { name: 'Ручка', qty: 'nd' };
 
+K.LIB_VER = 2; // при изменении стандартных модулей — увеличить
 K.defaultLib = function () {
   return JSON.parse(JSON.stringify([
     {
@@ -96,11 +97,13 @@ K.defaultLib = function () {
     },
     {
       id: 'counter', name: 'Столешница', cat: 'counter', z0: 'plinth+baseH',
-      params: [{ id: 'W', label: 'Длина', def: 1200, min: 200, max: 4000, step: 1 }, { id: 'D', label: 'Глубина (от плоскости корпуса)', def: 560, min: 300, max: 900, step: 1 }, { id: 'T', label: 'Толщина', def: 38, defF: 'tt', min: 20, max: 60, step: 1 }],
-      vars: [],
-      parts: [{ name: 'Столешница', mat: 'top', count: '1', x: '0', y: '-tf-20', z: '0', sx: 'W', sy: 'D+tf+20', sz: 'T', lax: 'x', edge: 'L1' }],
-      hardware: [{ name: 'Уголок крепления столешницы', qty: 'ceil(W/400)*2' }],
-      assembly: ['Раскрой и вырезы под мойку/варочную по шаблону техники, торцы — по типу столешницы.', 'Крепление к царгам снизу уголками.']
+      params: [{ id: 'W', label: 'Длина по стене (по заднему краю)', def: 1200, min: 100, max: 4000, step: 1 }, { id: 'D', label: 'Глубина (от плоскости корпуса)', def: 560, min: 300, max: 900, step: 1 }, { id: 'T', label: 'Толщина', def: 38, defF: 'tt', min: 20, max: 60, step: 1 },
+        { id: 'cutL', label: 'Подрезка левого торца, ° (+ наружный угол, − внутренний)', def: 0, min: -60, max: 60, step: 0.5 }, { id: 'cutR', label: 'Подрезка правого торца, °', def: 0, min: -60, max: 60, step: 0.5 }],
+      vars: [{ id: 'yf', f: '-tf-20' }, { id: 'dt', f: 'D+tf+20' }, { id: 'dl', f: 'dt*tand(cutL)' }, { id: 'dr', f: 'dt*tand(cutR)' }],
+      foot: '-dl,yf; W+dr,yf; W,D; 0,D',
+      parts: [{ name: 'Столешница', mat: 'top', count: '1', poly: '-dl,yf; W+dr,yf; W,D; 0,D', z: '0', sz: 'T', edge: '1' }],
+      hardware: [{ name: 'Уголок крепления столешницы', qty: 'ceil(W/400)*2' }, { name: 'Стяжка столешницы (евростяжка)', qty: '(cutL!=0)+(cutR!=0)' }],
+      assembly: ['Раскрой по контуру (подрезка торцов под угол стыка), вырезы под мойку/варочную по шаблону техники.', 'Стык под углом — на евростяжки + герметик.', 'Крепление к царгам снизу уголками.']
     },
     {
       id: 'filler', name: 'Фальшпанель / доборка', cat: 'filler', z0: 'plinth',
@@ -109,8 +112,35 @@ K.defaultLib = function () {
       parts: [{ name: 'Фальшпанель', mat: 'front', count: '1', x: '0', y: '-tf', z: 'gap/2', sx: 'W', sy: 'tf', sz: 'H-gap', edge: 'all' }],
       hardware: [],
       assembly: ['Крепить к соседнему корпусу уголками/саморезами изнутри.']
+    },
+    {
+      id: 'bay_corner', name: 'Угловая вставка эркера (скос)', cat: 'base', z0: 'plinth', place: 'corner',
+      params: [{ id: 'D', label: 'Глубина соседних корпусов', def: 560, min: 300, max: 700, step: 1 }, pH('baseH', 300, 900),
+        { id: 'ang', label: 'Излом стен, ° (восьмиугольник = 45)', def: 45, min: 10, max: 90, step: 0.5 },
+        { id: 'open', label: 'Открытая (1) / закрытая фальш-панелью (0)', def: 0, min: 0, max: 1, step: 1 }, pShelves(1)],
+      vars: [
+        { id: 's2', f: 'sind(ang/2)' }, { id: 'tw', f: 'tand(ang/2)' }, { id: 'Dn', f: 'D+tf' },
+        { id: 'W', f: '2*Dn*s2' }, { id: 'h', f: 'Dn*cosd(ang/2)' }, { id: 'xa', f: 'tf*tw+1' }, { id: 'yp', f: 'h-tf-2' },
+        { id: 'cl', f: 'tf*tw+gap/2+1' }, { id: 'pl', f: '(50+t+tf)*tw+1' }
+      ],
+      foot: '0,-tf; W,-tf; W/2,h-tf',
+      parts: [
+        { name: 'Дно (треугольник)', mat: 'body', count: '1', poly: 'xa,0; W-xa,0; W/2,yp', z: '0', sz: 't', edge: '1' },
+        { name: 'Крышка (треугольник)', mat: 'body', count: '1', poly: 'xa,0; W-xa,0; W/2,yp', z: 'H-t', sz: 't', edge: '1' },
+        { name: 'Полка (треугольник)', mat: 'body', count: 'open>0?shelves:0', poly: 'xa,0; W-xa,0; W/2,yp', z: 't+(i+1)*(H-2*t)/(shelves+1)-t/2', sz: 't', edge: '1' },
+        { name: 'Фальш-панель', mat: 'front', count: '1', if: 'open==0', x: 'cl', y: '-tf', z: 'gap/2', sx: 'W-2*cl', sy: 'tf', sz: 'H-gap', lax: 'z', edge: 'all' },
+        { name: 'Цоколь', mat: 'body', count: '1', x: 'pl', y: '50', z: '5-plinth', sx: 'W-2*pl', sy: 't', sz: 'plinth-10', lax: 'x', edge: 'L1 L2' }
+      ],
+      hardware: [{ name: 'Уголок мебельный (к бокам соседних корпусов)', qty: '4+open*shelves*2' }, { name: 'Саморез 4×16', qty: '16+open*shelves*4' }],
+      assembly: [
+        'Ставится в наружный (выпуклый) угол эркера между двумя корпусами, задние углы соседей сходятся в вершине стены.',
+        'Дно и крышка-треугольники — по шаблону (координаты вершин в спецификации), кромка по фронту.',
+        'Крепление дна/крышки/полок уголками к бокам соседних корпусов.',
+        'Фальш-панель — на уголки к дну и крышке, зазоры 2 мм к соседним фасадам; цоколь — по хорде.',
+        'Сверху — столешницы соседей с подрезкой торцов +ang/2 (сходятся в точке излома фронта).'
+      ]
     }
-  ]));
+  ])).map((m) => Object.assign(m, { ver: K.LIB_VER }));
 };
 
 K.catName = { base: 'Нижние', tall: 'Пеналы', wall: 'Верхние', counter: 'Столешницы', filler: 'Доборы', other: 'Прочее' };

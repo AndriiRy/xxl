@@ -1,7 +1,10 @@
 // Безопасный парсер формул (без eval). Формулы библиотеки: W-2*t, i==0?-1:1, floor((D-tb-10)/50)*50 ...
 (function (K) {
 'use strict';
-const FN = { min: Math.min, max: Math.max, round: Math.round, floor: Math.floor, ceil: Math.ceil, abs: Math.abs, sqrt: Math.sqrt };
+const R = Math.PI / 180;
+const FN = { min: Math.min, max: Math.max, round: Math.round, floor: Math.floor, ceil: Math.ceil, abs: Math.abs, sqrt: Math.sqrt,
+  sin: Math.sin, cos: Math.cos, tan: Math.tan, sind: (a) => Math.sin(a * R), cosd: (a) => Math.cos(a * R), tand: (a) => Math.tan(a * R),
+  atand: (a) => Math.atan(a) / R, atan2d: (y, x) => Math.atan2(y, x) / R };
 const OPS2 = ['<=', '>=', '==', '!=', '&&', '||'];
 const OPS1 = '+-*/%()<>,?:!';
 
@@ -100,5 +103,23 @@ K.ev = function (src, scope) {
 // Шаблон строки: «Направляющие L={rl}» → подстановка значений
 K.tpl = function (str, scope) {
   return String(str).replace(/\{([^}]+)\}/g, (m, e) => { try { return String(Math.round(K.ev(e, scope) * 10) / 10); } catch (_) { return m; } });
+};
+// Разбор по разделителю верхнего уровня (запятые внутри скобок не режутся)
+K.splitTop = function (str, sep) {
+  const out = []; let depth = 0, cur = '';
+  for (const ch of String(str)) {
+    if (ch === '(') depth++; else if (ch === ')') depth--;
+    if (ch === sep && depth === 0) { out.push(cur); cur = ''; } else cur += ch;
+  }
+  if (cur.trim() !== '') out.push(cur);
+  return out.map((x) => x.trim()).filter((x) => x !== '');
+};
+// «x1,y1; x2,y2; ...» → [[x,y],...]
+K.evPoly = function (str, scope) {
+  return K.splitTop(str, ';').map((pt) => {
+    const xy = K.splitTop(pt, ',');
+    if (xy.length !== 2) throw new Error('Точка контура должна быть «x,y»: «' + pt + '»');
+    return [K.ev(xy[0], scope), K.ev(xy[1], scope)];
+  });
 };
 })(window.K = window.K || {});
