@@ -21,7 +21,12 @@ function load() {
   try { const p = JSON.parse(localStorage.getItem(LS_P)); if (p) { S = mergeS(p.S); walls = p.walls || walls; items = p.items || []; nextId = p.nextId || 1; } } catch (_) {}
   if (!walls.bodies.length && !items.length) walls = sampleRoom();
 }
-function mergeS(x) { const d = K.defaultSettings(); x = x || {}; return { mats: Object.assign(d.mats, x.mats), g: Object.assign(d.g, x.g), sheet: Object.assign(d.sheet, x.sheet), lang: x.lang || 'ru' }; }
+function mergeS(x) {
+  const d = K.defaultSettings(); x = x || {};
+  const g = Object.assign(d.g, x.g);
+  if ((x.sv || 1) < 2 && x.g && x.g.wallGap === 35 && x.g.front === 565) { g.wallGap = 50; g.front = 560; } // новый стандарт: бок 510, до ХДФ 50
+  return { mats: Object.assign(d.mats, x.mats), g, sheet: Object.assign(d.sheet, x.sheet), lang: x.lang || 'ru', sv: 2 };
+}
 function save() {
   try { localStorage.setItem(LS_L, JSON.stringify(lib)); localStorage.setItem(LS_P, JSON.stringify({ S, walls, items, nextId })); } catch (_) {}
 }
@@ -175,6 +180,51 @@ function parseOBJ(txt, yUp) {
   }
   if (!bodies.length) throw new Error('Не найдено групп Wall/Window/Door');
   return { H: Math.max(2400, ...bodies.map((b) => b.max[2])), bodies };
+}
+
+
+// DXF (план из приложений-сканеров, напр. Twindo/Magicplan/Polycam): замкнутые полилинии → тела-контуры, отрезки → стены 100 мм
+function parseDXF(txt) {
+  const L = txt.split(/\r?\n/).map((x) => x.trim()); const pr = [];
+  for (let i = 0; i + 1 < L.length; i += 2) pr.push([parseInt(L[i], 10), L[i + 1]]);
+  let units = 0; for (let i = 0; i < pr.length - 1; i++) if (pr[i][1] === '$INSUNITS') { units = parseInt(pr[i + 1][1], 10); break; }
+  const ents = []; let cur = null, inEnt = false;
+  for (const [c, v] of pr) {
+    if (c === 2 && v === 'ENTITIES') inEnt = true;
+    if (!inEnt) continue;
+    if (c === 0) { if (cur) ents.push(cur); cur = { t: v, layer: '', x: [], y: [], f: 0 }; if (v === 'ENDSEC') { cur = null; inEnt = false; } continue; }
+    if (!cur) continue;
+    if (c === 8) cur.layer = v; else if (c === 10) cur.x.push(+v); else if (c === 20) cur.y.push(+v); else if (c === 11) cur.x2 = +v; else if (c === 21) cur.y2 = +v; else if (c === 70) cur.f = +v;
+  }
+  if (cur) ents.push(cur);
+  // POLYLINE + VERTEX
+  const polys = [], segs = [];
+  for (let i = 0; i < ents.length; i++) {
+    const e = ents[i];
+    if (e.t === 'LWPOLYLINE') polys.push({ layer: e.layer, pts: e.x.map((x, k) => [x, e.y[k]]), closed: (e.f & 1) === 1 });
+    else if (e.t === 'POLYLINE') { const pts = []; let j = i + 1; while (j < ents.length && ents[j].t === 'VERTEX') { pts.push([ents[j].x[0], ents[j].y[0]]); j++; } polys.push({ layer: e.layer, pts, closed: (e.f & 1) === 1 }); i = j; }
+    else if (e.t === 'LINE') segs.push({ layer: e.layer, a: [e.x[0], e.y[0]], b: [e.x2, e.y2] });
+  }
+  const all = polys.flatMap((p) => p.pts).concat(segs.flatMap((s) => [s.a, s.b]));
+  if (!all.length) throw new Error('В DXF нет LINE/LWPOLYLINE/POLYLINE');
+  const ext = Math.max(Math.max(...all.map((p) => p[0])) - Math.min(...all.map((p) => p[0])), Math.max(...all.map((p) => p[1])) - Math.min(...all.map((p) => p[1])));
+  const k = units === 6 ? 1000 : units === 5 ? 10 : units === 4 ? 1 : ext < 50 ? 1000 : ext < 1000 ? 10 : 1, H = 2700;
+  const kind = (n) => { n = (n || '').toLowerCase(); return /window|okn|окн/.test(n) ? 'window' : /door|drzw|двер/.test(n) ? 'door' : /furn|mebl|мебел|text|dim|wymiar|размер/.test(n) ? null : 'wall'; };
+  const bodies = [];
+  for (const p of polys) {
+    const ty = kind(p.layer); if (!ty) continue;
+    const pts = p.pts.map((q) => [q[0] * k, q[1] * k]);
+    if (p.closed && pts.length >= 3 && Math.abs(K.geo.area(pts)) > 1000) bodies.push(pb((TYPES[ty] || ty) + ' ' + (bodies.length + 1), ty, pts, ty === 'window' ? 850 : 0, ty === 'window' ? 2100 : ty === 'door' ? 2050 : H));
+    else for (let i = 0; i < pts.length - 1 + (p.closed ? 1 : 0); i++) segs.push({ layer: p.layer, a: pts[i].map((v) => v / k), b: pts[(i + 1) % pts.length].map((v) => v / k) });
+  }
+  for (const sgm of segs) {
+    const ty = kind(sgm.layer); if (!ty) continue;
+    const a = sgm.a.map((v) => v * k), b = sgm.b.map((v) => v * k), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy); if (l < 20) continue;
+    const n = [dy / l * 100, -dx / l * 100];
+    bodies.push(pb((TYPES[ty] || ty) + ' ' + (bodies.length + 1), ty, [a, b, [b[0] + n[0], b[1] + n[1]], [a[0] + n[0], a[1] + n[1]]], ty === 'window' ? 850 : 0, ty === 'window' ? 2100 : ty === 'door' ? 2050 : H));
+  }
+  if (!bodies.length) throw new Error('Не найдено стен в DXF');
+  return { H, bodies };
 }
 
 // ---------- сборка ----------
@@ -751,6 +801,7 @@ function renderWalls() {
 }
 function importWalls() {
   pickFile((txt) => {
+    if (/(^|\n)\s*ENTITIES\s*(\r?\n)/.test(txt) && /SECTION/.test(txt)) { walls = parseDXF(txt); V.fitted = false; cam3fit = false; renderWalls(); dirty(); alert('DXF: стен/тел — ' + walls.bodies.length + '. Отрезки получили толщину 100 мм (сторону проверьте), высоты окон/дверей — по умолчанию.'); return; }
     if (!/^\s*[\[{]/.test(txt)) { walls = parseOBJ(txt, confirm('OBJ: ось Y вверх? (RoomPlan/Polycam — да)')); V.fitted = false; cam3fit = false; renderWalls(); dirty(); return; }
     const j = JSON.parse(txt);
     if (!Array.isArray(j) && Array.isArray(j.walls) && j.walls.length && j.walls[0].transform) { walls = parseRoomPlan(j); V.fitted = false; cam3fit = false; renderWalls(); dirty(); return; }
@@ -829,9 +880,16 @@ function openSettings() {
   const gl = { gap: 'Зазор между фасадами', plinth: 'Высота цоколя', baseH: 'Высота корпуса нижних', wallBottom: 'Низ верхних шкафов от пола', wallH: 'Высота верхних', tallH: 'Высота пеналов', wallGap: 'Отступ нижних от стены до ХДФ (30–52)', wallGapUp: 'Отступ верхних от стены', front: 'Фронт корпуса от стены', cDepth: 'Глубина столешницы (напуск = глубина − фронт)' };
   for (const [k, n] of Object.entries(gl)) h += `<div class="row"><label>${n} <span class="mut">(${k})</span></label><input type="number" data-g="${k}" value="${S.g[k]}"></div>`;
   h += `<h3>Лист</h3><div class="row"><label>Длина × ширина</label><input type="number" data-s="L" value="${S.sheet.L}"><input type="number" data-s="W" value="${S.sheet.W}"></div><div class="row"><label>Запас на отход</label><input type="number" step="0.01" data-s="waste" value="${S.sheet.waste}"></div>`;
+  h += '<h3>Перенос телефон ⇄ компьютер</h3><div class="row"><button id="bkOut">Скачать всё (проект, стены, библиотека, настройки)</button><button id="bkIn">Загрузить всё</button></div><p class="hint">Данные хранятся в браузере устройства. Скачайте файл на телефоне и загрузите на компьютере (или положите в репозиторий: kitchen/backup/).</p>';
   h += '<div class="row"><span style="flex:1"></span><button id="sOk" class="pri">Применить</button><button id="sCancel">Отмена</button></div>';
   d.innerHTML = h; d.showModal();
   $('sCancel').onclick = () => d.close();
+  $('bkOut').onclick = () => download('kitchen-backup-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ format: 'kitchen-backup/1', date: new Date().toISOString(), S, walls, items, nextId, lib }, null, 1));
+  $('bkIn').onclick = () => pickFile((txt) => {
+    const j = JSON.parse(txt); if (j.format !== 'kitchen-backup/1') throw new Error('Это не файл переноса (kitchen-backup)');
+    if (!confirm('Заменить ВСЁ на этом устройстве данными из файла?')) return;
+    S = mergeS(j.S); walls = j.walls; items = j.items; nextId = j.nextId; lib = j.lib; save(); location.reload();
+  });
   $('sOk').onclick = () => {
     d.querySelectorAll('[data-m]').forEach((i) => { S.mats[i.dataset.m][i.dataset.f] = i.dataset.f === 't' ? parseFloat(i.value) || 1 : i.value; });
     d.querySelectorAll('[data-g]').forEach((i) => { S.g[i.dataset.g] = parseFloat(i.value) || 0; });
@@ -883,13 +941,28 @@ function renderEditor() {
   $('edTop').innerHTML = `<button id="eSave" class="pri">Сохранить в библиотеку</button><button id="eClose">Закрыть</button><input id="eName" value="${esc(m.name)}" style="width:210px"><select id="eCat">${Object.entries(K.catName).map(([k, v]) => `<option value="${k}"${k === m.cat ? ' selected' : ''}>${v}</option>`).join('')}</select><label class="mut">Низ от пола:</label><input id="eZ0" value="${esc(m.z0 || '0')}" style="width:120px"><label class="mut">Габарит (контур, пусто = W×D):</label><input id="eFoot" value="${esc(m.foot || '')}" style="width:220px" placeholder="x,y; x,y; … первое ребро — фронт"><select id="ePlace"><option value="">к стене</option><option value="corner"${m.place === 'corner' ? ' selected' : ''}>в наружный угол</option></select><span class="mut">id: ${esc(m.id)}</span>`;
   $('eName').oninput = (e) => (m.name = e.target.value); $('eCat').onchange = (e) => (m.cat = e.target.value); $('eZ0').oninput = (e) => { m.z0 = e.target.value; edChange(false); }; $('eFoot').oninput = (e) => { if (e.target.value.trim()) m.foot = e.target.value; else delete m.foot; edChange(false); }; $('ePlace').onchange = (e) => { if (e.target.value) m.place = e.target.value; else delete m.place; };
   $('eClose').onclick = closeEditor; $('eSave').onclick = () => { const i = lib.findIndex((x) => x.id === m.id); const err = edValidate(); if (err && !confirm('В модуле есть ошибка:\n' + err + '\nСохранить всё равно?')) return; m.edited = true; lib[i] = JSON.parse(JSON.stringify(m)); save(); renderLib(); dirty(); alert('Сохранено'); };
-  const F = $('edForm'); F.innerHTML = `<h3>Параметры</h3><div id="tP"></div><h3>Переменные (считаются по порядку)</h3><div id="tV"></div><h3>Детали</h3><p class="hint">Бокс детали в системе модуля: x — ширина, y — глубина (0 = перед, D = стена), z — вверх (0 = низ корпуса). i — номер экземпляра (с 0), n — их количество. Кромка: L1 L2 W1 W2 или all. Поворот z° — вокруг угла (x,y), такие детали без присадки. Контур «a,b; a,b; …» — фигурная деталь: плоскость xy (горизонт., z — низ, «размер z» — толщина), xz (фронтальная: a=x, b=z, y и «размер y»), yz (боковая: a=y, b=z, x и «размер x»); «Контур=сечение» — контур это профиль, выдавливание — длина доски (наклонная крышка). Кромка — номера рёбер «1 3», all; F/B — передний/задний торец для сечения; функции sind/cosd/tand в градусах. Д — длина детали (по оси «Ось Д» или по самой длинной стороне).</p><div class="row" style="flex-wrap:wrap;background:#1f252e;padding:6px;border-radius:6px"><b>Мастер корпуса:</b> дно <select id="wB"><option value="inner">между боков</option><option value="under">бока на дне</option></select> верх <select id="wT"><option value="rails">царги</option><option value="inner">крышка между боков</option><option value="over">крышка на боках</option><option value="none">без верха</option></select> задняя <select id="wK"><option value="inner">внутри (накладная в проём)</option><option value="groove">в паз 10 мм</option><option value="over">накладная сзади</option></select><button id="wGo">Заменить каркас</button></div><div id="tD"></div><h3>Фурнитура</h3><div class="row"><select id="hwSel" style="flex:1">${K.hwCatalog.map((h, i) => `<option value="${i}">${esc(h[0])}: ${esc(h[1])}</option>`).join('')}</select><button id="hwAdd">+ Добавить</button></div><div id="tH"></div><h3>Шаги сборки (по строке на шаг)</h3><textarea id="eAs" rows="6" style="width:100%"></textarea><div id="eErr" class="err" style="margin-top:8px"></div>`;
+  const F = $('edForm'); F.innerHTML = `<h3>Параметры</h3><div id="tP"></div><h3>Переменные (считаются по порядку)</h3><div id="tV"></div><h3>Детали</h3><p class="hint">Бокс детали в системе модуля: x — ширина, y — глубина (0 = перед, D = стена), z — вверх (0 = низ корпуса). i — номер экземпляра (с 0), n — их количество. Кромка: L1 L2 W1 W2 или all. Поворот z° — вокруг угла (x,y), такие детали без присадки. Контур «a,b; a,b; …» — фигурная деталь: плоскость xy (горизонт., z — низ, «размер z» — толщина), xz (фронтальная: a=x, b=z, y и «размер y»), yz (боковая: a=y, b=z, x и «размер x»); «Контур=сечение» — контур это профиль, выдавливание — длина доски (наклонная крышка). Кромка — номера рёбер «1 3», all; F/B — передний/задний торец для сечения; функции sind/cosd/tand в градусах. Д — длина детали (по оси «Ось Д» или по самой длинной стороне).</p><div style="background:#1f252e;padding:6px;border-radius:6px;margin:6px 0"><b>Конструктор фасадов</b> <span class="hint">секции снизу вверх: ящик (Blum Antaro, тип N/M/K/D по высоте фасада), дверь, ниша (техника), открытая; высота 0 = поровну из остатка</span><div id="tLay"></div><button id="layGo" class="pri">Сгенерировать фасады и наполнение</button></div><div class="row" style="flex-wrap:wrap;background:#1f252e;padding:6px;border-radius:6px"><b>Мастер корпуса:</b> дно <select id="wB"><option value="inner">между боков</option><option value="under">бока на дне</option></select> верх <select id="wT"><option value="rails">царги</option><option value="inner">крышка между боков</option><option value="over">крышка на боках</option><option value="none">без верха</option></select> задняя <select id="wK"><option value="inner">внутри (накладная в проём)</option><option value="groove">в паз 10 мм</option><option value="over">накладная сзади</option></select><button id="wGo">Заменить каркас</button></div><div id="tD"></div><h3>Фурнитура</h3><div class="row"><select id="hwSel" style="flex:1">${K.hwCatalog.map((h, i) => `<option value="${i}">${esc(h[0])}: ${esc(h[1])}</option>`).join('')}</select><button id="hwAdd">+ Добавить</button></div><div id="tH"></div><h3>Шаги сборки (по строке на шаг)</h3><textarea id="eAs" rows="6" style="width:100%"></textarea><div id="eErr" class="err" style="margin-top:8px"></div>`;
   $('eAs').value = (m.assembly || []).join('\n'); $('eAs').oninput = (e) => (m.assembly = e.target.value.split('\n').filter(Boolean));
   m.params = m.params || []; m.vars = m.vars || []; m.parts = m.parts || []; m.hardware = m.hardware || [];
   tableEd($('tP'), m.params, PAR_COLS, { id: 'p1', label: 'Параметр', def: 1, min: 0, max: 100, step: 1 }, edChange);
   tableEd($('tV'), m.vars, VAR_COLS, { id: 'v1', f: '0' }, edChange);
   tableEd($('tD'), m.parts, PART_COLS, { name: 'Деталь', mat: 'body', count: '1', x: '0', y: '0', z: '0', sx: 't', sy: 'D', sz: 'H' }, edChange);
   tableEd($('tH'), m.hardware, HW_COLS, { name: 'Крепёж', qty: '1' }, edChange);
+  m.layout = m.layout || [];
+  const LAY_COLS = [['type', 'Секция', 90, ['ящик', 'дверь', 'ниша', 'открытая']], ['h', 'Высота фасада, мм (0 = авто)', 90, null, 'num'], ['n', 'Дверей', 50, null, 'num'], ['shelves', 'Полок', 50, null, 'num']];
+  tableEd($('tLay'), m.layout, LAY_COLS, { type: 'ящик', h: 0, n: 1, shelves: 0 }, () => {});
+  $('layGo').onclick = () => {
+    if (!m.layout.length) return alert('Добавьте секции (+ строка)');
+    if (!confirm('Заменить фасады, ящики и полки модуля по конструктору? Каркас останется.')) return;
+    const g = K.layoutGen(m.layout);
+    const keep = m.parts.filter((p) => p.tag !== 'layout' && !/^(Фасад|Полка|Ящик|Перегородка)/.test(p.name) && p.role !== 'dside');
+    m.parts.splice(0, m.parts.length, ...keep, ...g.parts);
+    const hk = m.hardware.filter((h) => h.tag !== 'layout' && !/antaro|Ручка|Направляющие|крепление фасада ящика/i.test(h.name));
+    m.hardware.splice(0, m.hardware.length, ...hk, ...g.hw);
+    for (const v of g.vars) if (!m.vars.some((q) => q.id === v.id)) m.vars.push(v);
+    m.vars = m.vars.filter((v) => !['fh', 'sh', 'rl', 'bw', 'bh'].includes(v.id) || m.parts.some((p) => JSON.stringify(p).includes(v.id)));
+    renderEditor();
+  };
   $('hwAdd').onclick = () => { const h = K.hwCatalog[+$('hwSel').value]; m.hardware.push({ name: h[1], qty: h[2] }); tableEd($('tH'), m.hardware, HW_COLS, { name: 'Крепёж', qty: '1' }, edChange); edChange(true); };
   $('wGo').onclick = () => {
     if (!confirm('Заменить детали каркаса (бока, дно, верх, задняя стенка)? Остальные детали останутся.')) return;

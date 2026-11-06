@@ -14,7 +14,7 @@ const railF = { name: 'Царга передняя', mat: 'body', count: '1', x:
 const railB = { name: 'Царга задняя', mat: 'body', count: '1', x: 't', y: 'D-tb-100', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: '', drill: 'conf' };
 
 const pW = (def, min, max) => ({ id: 'W', label: 'Ширина', def, min, max, step: 1 });
-const pDb = { id: 'D', label: 'Глубина корпуса', def: 530, defF: 'front-wallGap', min: 200, max: 700, step: 1 };
+const pDb = { id: 'D', label: 'Глубина корпуса (бок)', def: 510, defF: 'front-wallGap', min: 200, max: 700, step: 1 };
 const pDw = { id: 'D', label: 'Глубина корпуса', def: 320, min: 150, max: 600, step: 1 };
 const pH = (f, min, max) => ({ id: 'H', label: 'Высота', def: 720, defF: f, min, max, step: 1 });
 const pShelves = (def) => ({ id: 'shelves', label: 'Полок', def, min: 0, max: 10, step: 1 });
@@ -30,7 +30,7 @@ const asmBase = [
   'Фасады: чашки Ø35 под петли, планки на боках, зазоры 2 мм, регулировка.'
 ];
 
-K.LIB_VER = 4; // при изменении стандартных модулей — увеличить
+K.LIB_VER = 5; // при изменении стандартных модулей — увеличить
 K.LIB_REMOVED = ['bay_corner'];
 K.defaultLib = function () {
   return JSON.parse(JSON.stringify([
@@ -148,7 +148,155 @@ K.defaultLib = function () {
       parts: [{ name: 'Фальшпанель', mat: 'front', count: '1', x: '0', y: '-tf', z: 'gap/2', sx: 'W', sy: 'tf', sz: 'H-gap', edge: 'all' }],
       hardware: [], assembly: ['Крепить к соседнему корпусу уголками/саморезами изнутри.']
     }
-  ])).map((m) => Object.assign(m, { ver: K.LIB_VER }));
+  ])).map((m) => (K.extraLib ? K.extraLib().find((x) => x.id === m.id) || m : m)).concat(K.extraLib ? K.extraLib().filter((x) => !['base_drawers'].includes(x.id)) : []).map((m) => Object.assign(JSON.parse(JSON.stringify(m)), { ver: K.LIB_VER }));
+};
+
+// ---------- Blum TANDEMBOX antaro (стандарт ящиков): металлические борта, дно и задняя стенка — ЛДСП 16 ----------
+// Борт: N=68, M=83, K=115, D=199 (по высоте фасада). Дно: LW−75 × NL−24; задняя: LW−87 × hb. ВЫСОТЫ ЗАДНИХ СТЕНОК — сверить с каталогом Blum.
+K.ANTARO = { hs: (h) => `((${h})<110?68:((${h})<150?83:((${h})<220?115:199)))`, hb: (h) => `((${h})<110?52:((${h})<150?68:((${h})<220?100:167)))` };
+const antaroVars = [{ id: 'NL', f: 'max(270,min(650,floor((D-tb-3)/50)*50))' }, { id: 'LW', f: 'W-2*t' }];
+// детали ящика для экземпляров i (count), фасад начинается на zf, высота фасада h
+const antaroBox = (count, zf, h, extra) => [
+  Object.assign({ name: 'Ящик Antaro: дно 16', mat: 'body', count, x: 't+37.5', y: '2', z: `max(t+3,${zf}+12)`, sx: 'LW-75', sy: 'NL-24', sz: '16', lax: 'x', edge: '' }, extra || {}),
+  Object.assign({ name: 'Ящик Antaro: задняя стенка 16', mat: 'body', count, x: 't+43.5', y: 'NL-38', z: `max(t+3,${zf}+12)+16`, sx: 'LW-87', sy: '16', sz: K.ANTARO.hb(h), lax: 'x', edge: 'L2' }, extra || {})
+];
+const antaroHw = (qtyBy) => [['N', '68'], ['M', '83'], ['K', '115'], ['D', '199']].map(([k, mm]) => ({ name: `Blum TANDEMBOX antaro ${k} (${mm}) NL={NL}, Blumotion`, qty: qtyBy(k) }));
+const typeCond = (h, k) => ({ N: `((${h})<110)`, M: `((${h})>=110&&(${h})<150)`, K: `((${h})>=150&&(${h})<220)`, D: `((${h})>=220)` }[k]);
+
+const pWm = (def, min, max, label) => ({ id: 'W', label: label || 'Ширина', def, min, max, step: 1 });
+const sideM = (name, x, sz) => ({ name, mat: 'body', count: '1', x, y: '0', z: '0', sx: 't', sy: 'D', sz: sz || 'H', lax: 'z', edge: 'L1', role: 'side' });
+const shelfFix = (name, z, sy) => ({ name, mat: 'body', count: '1', x: 't', y: '0', z, sx: 'W-2*t', sy: sy || 'D-tb', sz: 't', lax: 'x', edge: 'L1', drill: 'conf' });
+const frontP = (name, cnt, x, z, sx, sz, extra) => Object.assign({ name, mat: 'front', count: cnt, x, y: '-tf', z, sx, sy: 'tf', sz, edge: 'all' }, extra || {});
+const pDb5 = { id: 'D', label: 'Глубина корпуса (бок)', def: 510, defF: 'front-wallGap', min: 200, max: 700, step: 1 };
+const pHb = { id: 'H', label: 'Высота', def: 720, defF: 'baseH', min: 300, max: 900, step: 1 };
+const plinth5 = { name: 'Цоколь', mat: 'body', count: '1', x: '0', y: '50', z: '5-plinth', sx: 'W', sy: 't', sz: 'plinth-10', lax: 'x', edge: 'L1 L2' };
+const legs5 = { name: 'Ножка регулируемая h=100', qty: '4+(W>900)*2' };
+
+K.extraLib = function () {
+  const fe = '(i==drawers-1&&fte>0)?fte:fhe', ze = 'gap/2+i*(fhe+gap)';
+  return [
+    {
+      id: 'base_drawers', name: 'Нижний с ящиками (Antaro)', cat: 'base', z0: 'plinth',
+      params: [pWm(600, 300, 1200), pHb, pDb5, { id: 'drawers', label: 'Ящиков', def: 3, min: 1, max: 6, step: 1 }, { id: 'ft', label: 'Верхний фасад, мм (0 = все равные)', def: 0, min: 0, max: 600, step: 1 }],
+      vars: antaroVars.concat([{ id: 'fte', f: 'drawers>1?ft:0' }, { id: 'fhe', f: '(H-gap*drawers-fte)/(drawers-(fte>0?1:0))' }]),
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно', '0'),
+        { name: 'Царга передняя', mat: 'body', count: '1', x: 't', y: '0', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: 'L1', drill: 'conf' },
+        { name: 'Царга задняя', mat: 'body', count: '1', x: 't', y: 'D-tb-100', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: '', drill: 'conf' },
+        { name: 'Задняя стенка', mat: 'back', count: '1', x: 't', y: 'D-tb', z: 't', sx: 'W-2*t', sy: 'tb', sz: 'H-2*t' },
+        ...antaroBox('drawers', ze, fe),
+        frontP('Фасад (ящик)', 'drawers', 'gap/2', ze, 'W-gap', fe, { lax: 'x', role: 'drawerfront' }), plinth5],
+      hardware: [legs5, ...antaroHw((k) => `(drawers-(fte>0?1:0))*${typeCond('fhe', k)}+(fte>0)*${typeCond('fte', k)}`), { name: 'Blum antaro: крепление фронта (пара)', qty: 'drawers' }, { name: 'Ручка / фрезерованный уголок', qty: 'drawers' }],
+      assembly: ['Каркас: бока + дно + царги на конфирматы 7×50.', 'Задняя стенка ХДФ.', 'Направляющие Antaro на бока по шаблону Blum (первая — от дна).', 'Ящики: дно 16 + задняя 16 на борта Antaro (держатели задней стенки).', 'Фронты на крепления фронта, регулировка по высоте/боку/наклону, зазоры 2 мм.']
+    },
+    {
+      id: 'base_oven', name: 'Под духовку + ящик (Antaro)', cat: 'base', z0: 'plinth',
+      params: [pWm(600, 560, 900), pHb, pDb5, { id: 'ovenH', label: 'Высота ниши духовки', def: 595, min: 450, max: 700, step: 1 }],
+      vars: antaroVars.concat([{ id: 'fd', f: 'H-ovenH-gap' }]),
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно', '0'), shelfFix('Полка под духовку', 'H-ovenH-t'),
+        { name: 'Царга передняя', mat: 'body', count: '1', x: 't', y: '0', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: 'L1', drill: 'conf' },
+        { name: 'Задняя стенка (нижняя часть)', mat: 'back', count: '1', x: 't', y: 'D-tb', z: 't', sx: 'W-2*t', sy: 'tb', sz: 'H-ovenH-2*t' },
+        ...antaroBox('1', 'gap/2', 'fd'), frontP('Фасад (ящик)', '1', 'gap/2', 'gap/2', 'W-gap', 'fd', { lax: 'x', role: 'drawerfront' }), plinth5],
+      hardware: [legs5, ...antaroHw((k) => typeCond('fd', k)), { name: 'Blum antaro: крепление фронта (пара)', qty: '1' }, { name: 'Духовой шкаф встраиваемый 60 — монтаж (саморезы в бока)', qty: '1' }],
+      assembly: ['Каркас + полка под духовку на конфирматы; ниша без задней стенки (вентиляция).', 'Ящик Antaro под полкой.', 'Духовку — после установки корпуса, по инструкции производителя (зазоры вентиляции).']
+    },
+    {
+      id: 'base_sink', name: 'Под мойку (ящик Antaro / двери)', cat: 'base', z0: 'plinth',
+      params: [pWm(600, 400, 1200), pHb, pDb5, { id: 'mode', label: 'Ящик (1) / двери (0)', def: 1, min: 0, max: 1, step: 1 }, { id: 'doors', label: 'Дверей (0 = авто)', def: 0, min: 0, max: 2, step: 1 }],
+      vars: antaroVars.concat([{ id: 'nd', f: 'doors>0?doors:(W>600?2:1)' }, { id: 'dw', f: '(W-gap*nd)/nd' }, { id: 'fd', f: 'H-gap' }]),
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно', '0'),
+        { name: 'Царга передняя', mat: 'body', count: '1', x: 't', y: '0', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: 'L1', drill: 'conf' },
+        { name: 'Царга задняя (нижняя, без задней стенки)', mat: 'body', count: '1', x: 't', y: 'D-tb-100', z: 't', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: '', drill: 'conf' },
+        ...antaroBox('mode', 'gap/2', 'fd').map((p) => Object.assign(p, { name: p.name + ' (вырез под сифон)' })),
+        frontP('Фасад (ящик мойки)', 'mode', 'gap/2', 'gap/2', 'W-gap', 'fd', { lax: 'z', role: 'drawerfront' }),
+        frontP('Фасад (дверь)', 'mode==0?nd:0', 'gap/2+i*(dw+gap)', 'gap/2', 'dw', 'H-gap', { role: 'door', hinge: 'i==0?-1:1' }), plinth5],
+      hardware: [legs5, ...antaroHw((k) => `mode*${typeCond('fd', k)}`), { name: 'Blum Servo-drive (ящик мойки)', qty: 'mode' }, { name: 'Корзины / сортер отходов в ящик мойки', qty: '1' },
+        { name: 'Мойка подстольная (подвесная) — крепёж к столешнице', qty: '1' }, { name: 'Защита дна от влаги (алюминиевый поддон/фольга)', qty: '1' }],
+      assembly: ['Каркас без задней стенки (коммуникации), нижняя задняя царга.', 'Ящик Antaro D с вырезом задней стенки под сифон, Servo-drive.', 'Мойка подстольная — крепление к спеку до монтажа на корпус.', 'Корзины/сортер в ящик.']
+    },
+    {
+      id: 'base_cargo', name: 'Карго (cargo)', cat: 'base', z0: 'plinth',
+      params: [pWm(150, 150, 450), pHb, pDb5],
+      vars: [],
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно', '0'),
+        { name: 'Царга передняя', mat: 'body', count: '1', x: 't', y: '0', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: 'L1', drill: 'conf' },
+        { name: 'Царга задняя', mat: 'body', count: '1', x: 't', y: 'D-tb-100', z: 'H-t', sx: 'W-2*t', sy: '100', sz: 't', lax: 'x', edge: '', drill: 'conf' },
+        { name: 'Задняя стенка', mat: 'back', count: '1', x: 't', y: 'D-tb', z: 't', sx: 'W-2*t', sy: 'tb', sz: 'H-2*t' },
+        frontP('Фасад карго', '1', 'gap/2', 'gap/2', 'W-gap', 'H-gap', { lax: 'z', role: 'drawerfront' }), plinth5],
+      hardware: [{ name: 'Ножка регулируемая h=100', qty: '4' }, { name: 'Cargo {W} (2 уровня), полное выдвижение, доводчик', qty: '1' }, { name: 'Крепление фасада карго', qty: '1' }],
+      assembly: ['Каркас на конфирматы, задняя ХДФ.', 'Механизм карго по шаблону производителя (на дно и бок).', 'Фасад на кронштейны механизма, регулировка.']
+    },
+    {
+      id: 'appl_dishwasher', name: 'Посудомойка встраиваемая (фасад)', cat: 'base', z0: 'plinth',
+      params: [pWm(450, 450, 600, 'Ширина (45/60)'), pHb, { id: 'D', label: 'Глубина ниши (для габарита)', def: 510, defF: 'front-wallGap', min: 450, max: 700, step: 1 }],
+      vars: [],
+      parts: [frontP('Фасад ПММ', '1', 'gap/2', 'gap/2', 'W-gap', 'H-gap', { lax: 'z', role: 'appfront' }),
+        Object.assign({}, plinth5, { name: 'Цоколь ПММ (подрезать под дверь машины)' })],
+      hardware: [{ name: 'Комплект крепления фасада ПММ (из комплекта машины)', qty: '1' }, { name: 'Пароизоляционная лента под столешницу', qty: '1' }],
+      assembly: ['Машина встраивается в нишу между корпусами, крепится к столешнице/бокам.', 'Фасад — по шаблону машины, зазор к цоколю по инструкции.', 'Пароизоляция под спеком над машиной.']
+    },
+    {
+      id: 'tall_fridge', name: 'Колонна под холодильник', cat: 'tall', z0: 'plinth',
+      params: [pWm(600, 560, 700), { id: 'H', label: 'Высота корпуса', def: 2100, defF: 'tallH', min: 1700, max: 2700, step: 1 }, pDb5,
+        { id: 'niche', label: 'Ниша холодильника (высота)', def: 1780, min: 800, max: 2200, step: 1 }, { id: 'split', label: 'Нижний фасад (морозилка), мм; 0 = один', def: 0, min: 0, max: 1500, step: 1 }, { id: 'doors', label: 'Дверей сверху (0 = авто)', def: 0, min: 0, max: 2, step: 1 }],
+      vars: [{ id: 'nd', f: 'doors>0?doors:(W>600?2:1)' }, { id: 'dw', f: '(W-gap*nd)/nd' }, { id: 'zs', f: 't+niche' }, { id: 'zf', f: 't+niche+t/2' }],
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно', '0'), shelfFix('Полка над холодильником', 'zs'), shelfFix('Крышка', 'H-t'),
+        { name: 'Задняя стенка (над холодильником)', mat: 'back', count: '1', x: 't', y: 'D-tb', z: 'zs+t', sx: 'W-2*t', sy: 'tb', sz: 'H-zs-2*t' },
+        frontP('Фасад холодильника', 'split>0?0:1', 'gap/2', 'gap/2', 'W-gap', 'zf-gap', { lax: 'z', role: 'appfront' }),
+        frontP('Фасад морозилки (нижний)', 'split>0?1:0', 'gap/2', 'gap/2', 'W-gap', 'split', { lax: 'z', role: 'appfront' }),
+        frontP('Фасад холодильника (верхний)', 'split>0?1:0', 'gap/2', 'gap/2+split+gap', 'W-gap', 'zf-gap-split-gap', { lax: 'z', role: 'appfront' }),
+        frontP('Фасад (дверь антресоли)', 'nd', 'gap/2+i*(dw+gap)', 'zf+gap/2', 'dw', 'H-zf-gap', { role: 'door', hinge: 'i==0?-1:1' }),
+        Object.assign({}, plinth5, { name: 'Цоколь с вентрешёткой' })],
+      hardware: [{ name: 'Ножка регулируемая h=100', qty: '4' }, { name: 'Направляющие фасада встр. холодильника (комплект)', qty: 'split>0?2:1' }, { name: 'Вентиляционная решётка в цоколь', qty: '1' },
+        { name: 'Фрезы/щель вентиляции сверху (≥ 200 см²)', qty: '1' }, { name: 'Уголок крепления колонны к стене', qty: '2' }],
+      assembly: ['Каркас на конфирматы, полка над нишей, крышка; задняя ХДФ только сверху.', 'Ниша — по размеру холодильника (проверить по факту, левый бок к столбику по месту).', 'Холодильник — на направляющие фасада по шаблону; вентиляция снизу (цоколь) и сверху.', 'Антресоль: петли, двери.']
+    },
+    {
+      id: 'wall_hood', name: 'Верхний над вытяжкой (подшкафная)', cat: 'wall', z0: 'wallBottom',
+      params: [pWm(600, 500, 1200), { id: 'H', label: 'Высота', def: 720, defF: 'wallH', min: 300, max: 1100, step: 1 }, { id: 'D', label: 'Глубина корпуса', def: 320, min: 280, max: 600, step: 1 },
+        { id: 'hoodH', label: 'Высота вытяжки (ниша снизу)', def: 264, min: 0, max: 500, step: 1 }, { id: 'doors', label: 'Дверей (0 = авто)', def: 0, min: 0, max: 2, step: 1 }],
+      vars: [{ id: 'nd', f: 'doors>0?doors:(W>600?2:1)' }, { id: 'dw', f: '(W-gap*nd)/nd' }],
+      parts: [sideM('Бок левый', '0'), sideM('Бок правый', 'W-t'), shelfFix('Дно над вытяжкой (вырез под воздуховод)', 'hoodH'), shelfFix('Крышка', 'H-t'),
+        { name: 'Задняя стенка', mat: 'back', count: '1', x: 't', y: 'D-tb', z: 'hoodH+t', sx: 'W-2*t', sy: 'tb', sz: 'H-hoodH-2*t' },
+        frontP('Фасад (дверь)', 'nd', 'gap/2+i*(dw+gap)', 'hoodH+gap/2', 'dw', 'H-hoodH-gap', { role: 'door', hinge: 'i==0?-1:1' })],
+      hardware: [{ name: 'Навес шкафа регулируемый', qty: '2' }, { name: 'Вытяжка подшкафная — крепёж к бокам', qty: '1' }, { name: 'Воздуховод / короб через дно и крышку', qty: '1' }],
+      assembly: ['Каркас: дно поднято на высоту вытяжки, вырез под воздуховод по шаблону вытяжки.', 'Вытяжка в нишу снизу, фронт вытяжки — в плоскости нижней кромки (лицуется с нижним обвязом).', 'Двери до низа корпуса над вытяжкой.']
+    }
+  ];
+};
+
+// ---------- Конструктор секций фасада (снизу вверх) → детали и фурнитура ----------
+// sec: {type:'drawer'|'door'|'niche'|'open', h: мм (0 = авто), n: дверей}
+K.layoutGen = function (secs) {
+  const RU = { 'ящик': 'drawer', 'дверь': 'door', 'ниша': 'niche', 'открытая': 'open' };
+  secs = secs.map((s) => Object.assign({}, s, { type: RU[s.type] || s.type }));
+  const n = secs.length, fixed = secs.reduce((a, s) => a + (s.h > 0 ? +s.h : 0), 0), na = secs.filter((s) => !(s.h > 0)).length;
+  const auto = na ? `((H-gap*${n}-${fixed})/${na})` : '0';
+  const hx = secs.map((s) => (s.h > 0 ? String(+s.h) : auto));
+  const zx = secs.map((s, k) => (k ? `gap/2+gap*${k}+` + hx.slice(0, k).map((h) => `(${h})`).join('+') : 'gap/2'));
+  const parts = [], hw = [], drawers = [];
+  secs.forEach((s, k) => {
+    const z = zx[k], h = hx[k], tag = { tag: 'layout' };
+    if (s.type === 'drawer') {
+      drawers.push(h);
+      parts.push(...antaroBox('1', z, h, tag).map((p) => Object.assign(p, { name: p.name + ' #' + (k + 1) })));
+      parts.push(frontP('Фасад ящика #' + (k + 1), '1', 'gap/2', z, 'W-gap', h, Object.assign({ lax: 'x', role: 'drawerfront' }, tag)));
+    } else if (s.type === 'door') {
+      const c = Math.max(1, +s.n || 1);
+      parts.push(frontP('Фасад (дверь) #' + (k + 1), String(c), `gap/2+i*((W-gap*${c})/${c}+gap)`, z, `(W-gap*${c})/${c}`, h, Object.assign({ role: 'door', hinge: 'i==0?-1:1' }, tag)));
+      parts.push(Object.assign({ name: 'Полка #' + (k + 1), mat: 'body', count: s.shelves ? String(+s.shelves) : '0', x: 't+1', y: '20', z: `(${z})+(i+1)*(${h})/(n+1)`, sx: 'W-2*t-2', sy: 'D-tb-25', sz: 't', lax: 'x', edge: 'L1', drill: 'shelf' }, tag));
+    } else if (s.type === 'open') {
+      parts.push(Object.assign({ name: 'Полка открытая #' + (k + 1), mat: 'body', count: s.shelves ? String(+s.shelves) : '0', x: 't+1', y: '20', z: `(${z})+(i+1)*(${h})/(n+1)`, sx: 'W-2*t-2', sy: 'D-tb-25', sz: 't', lax: 'x', edge: 'L1', drill: 'shelf' }, tag));
+    }
+    // перегородка между секциями (кроме ящик/ящик)
+    if (k < n - 1 && !(s.type === 'drawer' && secs[k + 1].type === 'drawer')) parts.push(Object.assign(shelfFix('Перегородка #' + (k + 1) + '/' + (k + 2), `(${zx[k + 1]})-gap/2-t/2`), tag));
+  });
+  if (drawers.length) {
+    for (const [k, mm] of [['N', '68'], ['M', '83'], ['K', '115'], ['D', '199']]) hw.push({ name: `Blum TANDEMBOX antaro ${k} (${mm}) NL={NL}, Blumotion`, qty: drawers.map((h) => typeCond(h, k)).join('+'), tag: 'layout' });
+    hw.push({ name: 'Blum antaro: крепление фронта (пара)', qty: String(drawers.length), tag: 'layout' });
+  }
+  const fronts = drawers.length + secs.filter((s) => s.type === 'door').reduce((a, s) => a + Math.max(1, +s.n || 1), 0);
+  if (fronts) hw.push({ name: 'Ручка / фрезерованный уголок', qty: String(fronts), tag: 'layout' });
+  return { parts, hw, vars: antaroVars };
 };
 
 K.catName = { base: 'Нижние', tall: 'Пеналы', wall: 'Верхние', counter: 'Столешницы', filler: 'Доборы', other: 'Прочее' };

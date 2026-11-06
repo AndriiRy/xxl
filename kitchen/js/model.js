@@ -11,7 +11,8 @@ K.defaultSettings = function () {
       back: { name: 'ХДФ', t: 3, edge: '' },
       top: { name: 'Столешница (спек)', t: 12, edge: '' }
     },
-    g: { gap: 2, plinth: 100, baseH: 720, wallBottom: 1450, wallH: 720, tallH: 2100, wallGap: 35, wallGapUp: 0, front: 565, cDepth: 600 },
+    g: { gap: 2, plinth: 100, baseH: 720, wallBottom: 1450, wallH: 720, tallH: 2100, wallGap: 50, wallGapUp: 0, front: 560, cDepth: 600 },
+    sv: 2,
     sheet: { L: 2800, W: 2070, waste: 1.15 }
   };
 };

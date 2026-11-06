@@ -58,6 +58,12 @@ const PL = {
   'Столешниц создано': 'Utworzono blatów', 'Торцы у изломов стен подрезаны под угол стыка.': 'Końce przy załamaniach ścian docięte pod kąt łączenia.', 'Нет рядов нижних шкафов спиной к стене.': 'Brak rzędów dolnych szafek przy ścianie.',
   'План: колесо — масштаб, перетаскивание пустого места — сдвиг, двойной клик — вписать. Alt при перетаскивании — без прилипания. R — повернуть 90°, Shift+R — 45°, Del — удалить. Угловой модуль эркера бросайте у наружного угла эркера.': 'Rzut: kółko — zoom, przeciąganie tła — przesuw, dwuklik — dopasuj. Alt przy przeciąganiu — bez przyciągania. R — obrót 90°, Shift+R — 45°, Del — usuń. Szafka pod kątem przy załamaniu ściany sama dopasuje się do łączenia blatu.',
   'Листов': 'Płyt', '(копия)': '(kopia)', 'с запасом': 'z zapasem', 'ошибка формулы кол-ва': 'błąd wzoru ilości', 'Неизвестная переменная': 'Nieznana zmienna', 'в формуле': 'we wzorze',
+  'Нижний с ящиками (Antaro)': 'Dolna z szufladami (Antaro)', 'Под духовку + ящик (Antaro)': 'Pod piekarnik + szuflada (Antaro)', 'Под мойку (ящик Antaro / двери)': 'Pod zlew (szuflada Antaro / drzwi)',
+  'Карго (cargo)': 'Cargo', 'Посудомойка встраиваемая (фасад)': 'Zmywarka do zabudowy (front)', 'Колонна под холодильник': 'Słupek na lodówkę', 'Верхний над вытяжкой (подшкафная)': 'Górna nad okapem (podszafkowy)',
+  'Конструктор фасадов': 'Konstruktor frontów', 'Сгенерировать фасады и наполнение': 'Generuj fronty i wyposażenie', 'Секция': 'Sekcja', 'ящик': 'szuflada', 'дверь': 'drzwi', 'ниша': 'wnęka', 'открытая': 'otwarta',
+  'Высота фасада, мм (0 = авто)': 'Wysokość frontu, mm (0 = auto)', 'Перенос телефон ⇄ компьютер': 'Przeniesienie telefon ⇄ komputer', 'Скачать всё (проект, стены, библиотека, настройки)': 'Pobierz wszystko (projekt, ściany, biblioteka, ustawienia)', 'Загрузить всё': 'Wczytaj wszystko',
+  'Фасад ПММ': 'Front zmywarki', 'Фасад холодильника': 'Front lodówki', 'Фасад морозилки (нижний)': 'Front zamrażarki (dolny)', 'Фасад карго': 'Front cargo', 'Полка над холодильником': 'Półka nad lodówką', 'Полка под духовку': 'Półka pod piekarnik', 'Перегородка': 'Przegroda',
+  'Ниша холодильника (высота)': 'Wnęka lodówki (wysokość)', 'Высота ниши духовки': 'Wysokość wnęki piekarnika', 'Высота вытяжки (ниша снизу)': 'Wysokość okapu (wnęka od dołu)', 'Глубина корпуса (бок)': 'Głębokość korpusu (bok)',
   'Каркас': 'Korpus', 'Фасады:': 'Fronty:', 'Ножки, цоколь.': 'Nóżki, cokół.', 'зазоры 2 мм': 'szczeliny 2 mm'
 };
 K.lang = 'ru';
