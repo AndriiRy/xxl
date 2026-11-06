@@ -9,9 +9,9 @@ K.defaultSettings = function () {
       body: { name: 'ЛДСП корпус', t: 16, edge: 'ABS 0.4' },
       front: { name: 'МДФ/ЛДСП фасад', t: 18, edge: 'ABS 2' },
       back: { name: 'ХДФ', t: 3, edge: '' },
-      top: { name: 'Столешница', t: 38, edge: '' }
+      top: { name: 'Столешница (спек)', t: 12, edge: '' }
     },
-    g: { gap: 2, plinth: 100, baseH: 720, wallBottom: 1450, wallH: 720, tallH: 2100 },
+    g: { gap: 2, plinth: 100, baseH: 720, wallBottom: 1450, wallH: 720, tallH: 2100, wallGap: 35, wallGapUp: 0, front: 565, cDepth: 600 },
     sheet: { L: 2800, W: 2070, waste: 1.15 }
   };
 };
@@ -135,16 +135,23 @@ K.buildItem = function (item, S, mod) {
       const s = Object.assign({}, sc, { i, n });
       const base = { cab: item.label, base: d.name, name: n > 1 ? d.name + ' ' + (i + 1) : d.name, mat: d.mat, md, role: d.role || '', drill: d.drill || '', to: d.to || 'side', holes: [] };
       let p;
-      if (isSet(d.poly)) { // фигурная пластина в плане
-        const pts = K.evPoly(d.poly, s).map((v) => [r1(v[0]), r1(v[1])]);
+      if (isSet(d.poly)) { // фигурная пластина: контур в плоскости xy (горизонт.), xz (фронтальная) или yz (боковая)
+        const pl = d.plane || 'xy', pts = K.evPoly(d.poly, s).map((v) => [r1(v[0]), r1(v[1])]);
         if (pts.length < 3) throw new Error('Деталь «' + d.name + '»: в контуре меньше 3 точек');
-        const zz = r1(K.ev(d.z, s)), T = r1(K.ev(d.sz, s));
+        const T = r1(K.ev(pl === 'xy' ? d.sz : pl === 'xz' ? d.sy : d.sx, s)), off = r1(K.ev(pl === 'xy' ? d.z : pl === 'xz' ? d.y : d.x, s));
         if (!(T > 0) || Math.abs(G.area(pts)) < 1) throw new Error('Деталь «' + d.name + '»: пустой контур или толщина ≤ 0');
-        const mr = G.minRect(pts), xs = pts.map((v) => v[0]), ys = pts.map((v) => v[1]);
-        const edgeIdx = parsePolyEdge(d.edge, pts.length);
-        p = Object.assign(base, { shape: 'poly', plan: pts, z0: zz, z1: zz + T, L: mr.L, W: mr.W, T, cutPts: mr.pts, edgeIdx, edge: [],
-          edgeLen: edgeIdx.reduce((a, k) => { const q = pts[k - 1], r = pts[k % pts.length]; return a + Math.hypot(r[0] - q[0], r[1] - q[1]); }, 0),
-          mn: [Math.min(...xs), Math.min(...ys), zz], sz: [Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys), T], hinge: 0 });
+        const mr = G.minRect(pts), sec = !!(d.sec && String(d.sec) !== '0'); // sec: контур — сечение, выдавливание — длина доски
+        const etok = String(d.edge || '').toUpperCase(), edgeIdx = parsePolyEdge(etok.replace(/[FB]/g, ' '), pts.length);
+        const caps = (etok.includes('F') ? 1 : 0) + (etok.includes('B') ? 1 : 0);
+        const P = pts.map((v) => (pl === 'xy' ? [v[0], v[1], off] : pl === 'xz' ? [v[0], off, v[1]] : [off, v[0], v[1]]));
+        const e = pl === 'xy' ? [0, 0, T] : pl === 'xz' ? [0, T, 0] : [T, 0, 0];
+        const mn = [0, 1, 2].map((k) => Math.min(...P.map((q) => q[k]), ...P.map((q) => q[k] + e[k])));
+        const mx = [0, 1, 2].map((k) => Math.max(...P.map((q) => q[k]), ...P.map((q) => q[k] + e[k])));
+        const perim = edgeIdx.reduce((a, k) => { const q = pts[k - 1], r = pts[k % pts.length]; return a + Math.hypot(r[0] - q[0], r[1] - q[1]); }, 0);
+        p = Object.assign(base, { shape: 'poly', plane: pl, sec, P, e, cutPts: mr.pts, edgeIdx, edge: [], caps: etok.replace(/[^FB]/g, ''),
+          L: sec ? Math.max(mr.L, T) : mr.L, W: sec ? Math.min(mr.L, T) : mr.W, T: sec ? mr.W : T,
+          edgeLen: sec ? edgeIdx.length * T + caps * mr.L : perim,
+          mn, sz: [0, 1, 2].map((k) => mx[k] - mn[k]), z0: mn[2], z1: mx[2], hinge: 0 });
       } else {
         const mn = [K.ev(d.x, s), K.ev(d.y, s), K.ev(d.z, s)].map(r1);
         const sz = [K.ev(d.sx, s), K.ev(d.sy, s), K.ev(d.sz, s)].map(r1);
@@ -154,7 +161,7 @@ K.buildItem = function (item, S, mod) {
         const edge = parseEdge(d.edge);
         p = Object.assign(base, { shape: 'box', mn, sz, ax, rz, L: sz[ax.aL], W: sz[ax.aW], T: sz[ax.aT], edge,
           edgeLen: edge.reduce((a, e) => a + (e[0] === 'L' ? sz[ax.aL] : sz[ax.aW]), 0),
-          plan: [rp(0, 0), rp(sz[0], 0), rp(sz[0], sz[1]), rp(0, sz[1])], z0: mn[2], z1: mn[2] + sz[2],
+          P: [rp(0, 0), rp(sz[0], 0), rp(sz[0], sz[1]), rp(0, sz[1])].map((v) => [v[0], v[1], mn[2]]), e: [0, 0, sz[2]], z0: mn[2], z1: mn[2] + sz[2],
           hinge: isSet(d.hinge) && !rz ? Math.sign(K.ev(d.hinge, s)) : 0 });
       }
       parts.push(p);
@@ -162,7 +169,10 @@ K.buildItem = function (item, S, mod) {
   }
   drill(parts.filter((p) => p.shape === 'box' && !p.rz));
   const hw = [];
-  for (const h of mod.hardware || []) { const q = Math.round(K.ev(h.qty, sc)); if (q > 0) hw.push({ name: K.tpl(h.name, sc), qty: q }); }
+  for (const h of mod.hardware || []) {
+    let q; try { q = Math.round(K.ev(h.qty, sc)); } catch (e) { hw.push({ name: h.name + ' — ошибка формулы кол-ва: ' + e.message, qty: 1, err: 1 }); continue; }
+    if (q > 0) hw.push({ name: K.tpl(h.name, sc), qty: q });
+  }
   const cnt = (k) => parts.reduce((a, p) => a + p.holes.filter((h) => h.kind === k).length, 0);
   const auto = [['Конфирмат 7×50', cnt('conf5')], ['Полкодержатель Ø5', cnt('pin')], ['Петля накладная с планкой (чашка Ø35)', cnt('cup')], ['Евровинт 6,3×13 для планки петли', cnt('cup') * 2]];
   for (const [name, qty] of auto) if (qty > 0) hw.push({ name, qty });
@@ -222,7 +232,13 @@ function drill(parts) {
 // Мировые призмы всех деталей шкафа
 K.worldSolids = function (item, built) {
   const f = K.xf(item);
-  return built.parts.map((p) => ({ pts: p.plan.map((v) => f(v[0], v[1])), z0: built.z0 + p.z0, z1: built.z0 + p.z1, mat: p.mat, role: p.role, name: p.cab + ' ' + p.name, part: p }));
+  const [c, s] = cs(item.rot);
+  return built.parts.map((p) => ({
+    P3: p.P.map((v) => { const w = f(v[0], v[1]); return [w[0], w[1], built.z0 + v[2]]; }),
+    e: [p.e[0] * c - p.e[1] * s, p.e[0] * s + p.e[1] * c, p.e[2]], mat: p.mat, role: p.role, name: p.cab + ' ' + p.name, part: p
+  }));
 };
+// Мировые вершины призмы (для проверок)
+K.solidVerts = (b) => b.P3.concat(b.P3.map((v) => [v[0] + b.e[0], v[1] + b.e[1], v[2] + b.e[2]]));
 K.r1 = r1;
 })(window.K = window.K || {});

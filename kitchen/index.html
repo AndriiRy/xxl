@@ -56,8 +56,8 @@ dialog{background:var(--pan);color:var(--tx);border:1px solid var(--bd);border-r
   <button id="bNew">Новый</button><button id="bOpen">Открыть</button><button id="bSave">Сохранить проект</button>
   <button id="bWalls">Стены из Fusion…</button>
   <span class="sp"></span><span id="status" class="mut"></span>
-  <button id="bCsv">CSV раскрой</button><button id="bFusion">JSON → Fusion</button><button id="bSettings">Настройки</button>
-  <input id="fileAny" type="file" accept=".json,application/json" hidden>
+  <button id="bCsv">CSV раскрой</button><button id="bFusion">JSON → Fusion</button><button id="bSettings">Настройки</button><select id="bLang" title="Język / Язык"><option value="ru">RU</option><option value="pl">PL</option></select>
+  <input id="fileAny" type="file" accept=".json,.obj,application/json" hidden>
 </header>
 <div id="app">
   <aside id="left">
@@ -80,7 +80,7 @@ dialog{background:var(--pan);color:var(--tx);border:1px solid var(--bd);border-r
   <aside id="right"><div id="props"></div></aside>
 </div>
 <dialog id="dlgSet"></dialog>
-<script src="js/expr.js"></script><script src="js/lib.js"></script><script src="js/model.js"></script>
+<script src="js/i18n.js"></script><script src="js/expr.js"></script><script src="js/lib.js"></script><script src="js/model.js"></script>
 <script src="js/spec.js"></script><script src="js/view3d.js"></script><script src="js/app.js"></script>
 </body>
 </html>

@@ -57,6 +57,74 @@ K.polySVG = function (p) {
   return o + `<text x="${pad}" y="${pad - 6}" font-size="10" fill="#555">заготовка ${f1(p.L)}×${f1(p.W)}</text></svg>`;
 };
 
+// ---------- технологические чертежи (мм) ----------
+function dimLine(o, x1, x2, y, txt, up) { // горизонтальная размерная линия
+  if (Math.abs(x2 - x1) < 1) return;
+  o.push(`<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#c92a2a" stroke-width=".8"/><line x1="${x1}" y1="${y - 4}" x2="${x1}" y2="${y + 4}" stroke="#c92a2a" stroke-width=".8"/><line x1="${x2}" y1="${y - 4}" x2="${x2}" y2="${y + 4}" stroke="#c92a2a" stroke-width=".8"/>`);
+  const w = Math.abs(x2 - x1), fs = w < 26 ? 7 : 9;
+  o.push(`<text x="${(x1 + x2) / 2}" y="${y + (up ? -3 : 10)}" font-size="${fs}" text-anchor="middle" fill="#c92a2a">${txt}</text>`);
+}
+function dimV(o, x, y1, y2, txt) {
+  if (Math.abs(y2 - y1) < 1) return;
+  o.push(`<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="#c92a2a" stroke-width=".8"/><line x1="${x - 4}" y1="${y1}" x2="${x + 4}" y2="${y1}" stroke="#c92a2a" stroke-width=".8"/><line x1="${x - 4}" y1="${y2}" x2="${x + 4}" y2="${y2}" stroke="#c92a2a" stroke-width=".8"/>`);
+  o.push(`<text x="${x - 3}" y="${(y1 + y2) / 2}" font-size="8" text-anchor="middle" fill="#c92a2a" transform="rotate(-90 ${x - 3} ${(y1 + y2) / 2})">${txt}</text>`);
+}
+function chain(vals) { return [...new Set(vals.map((v) => Math.round(v * 10) / 10))].sort((a, b) => a - b); }
+// Развёртка стены: el = {title, u, lo, len, H, items:[{item,mod,built,ext}], wins:[{u0,u1,z0,z1,name}], marks:[z...]}
+K.elevSVG = function (el) {
+  const s = Math.min(860 / Math.max(el.len, 500), 380 / el.H), L = 70, T = 40, Wp = el.len * s, Hp = el.H * s;
+  const X = (u) => L + u * s, Y = (z) => T + Hp - z * s, o = [];
+  o.push(`<rect x="${X(0)}" y="${Y(el.H)}" width="${Wp}" height="${Hp}" fill="#fafafa" stroke="#222" stroke-width="1.2"/>`);
+  for (const w of el.wins) o.push(`<rect x="${X(w.u0)}" y="${Y(w.z1)}" width="${(w.u1 - w.u0) * s}" height="${(w.z1 - w.z0) * s}" fill="#e7f5ff" stroke="#1c7ed6" stroke-dasharray="4 2"/><text x="${X(w.u0) + 3}" y="${Y(w.z1) + 10}" font-size="8" fill="#1c7ed6">${esc(w.name)}</text>`);
+  for (const j of el.joints || []) o.push(`<line x1="${X(j)}" y1="${Y(el.H)}" x2="${X(j)}" y2="${Y(0)}" stroke="#868e96" stroke-dasharray="6 3"/>`);
+  const base = [], up = [];
+  for (const it of el.items) {
+    const sols = K.worldSolids(it.item, it.built), cat = it.mod.cat;
+    const pr = (sol) => { const V = K.solidVerts(sol), us = V.map((v) => it.pu(v)), zs = V.map((v) => v[2]); return [Math.min(...us), Math.max(...us), Math.min(...zs), Math.max(...zs)]; };
+    const us = it.ext.pts.map((p) => it.pu(p)), u0 = Math.min(...us), u1 = Math.max(...us);
+    if (cat !== 'counter') o.push(`<rect x="${X(u0)}" y="${Y(it.ext.z1)}" width="${(u1 - u0) * s}" height="${(it.ext.z1 - it.ext.z0) * s}" fill="none" stroke="#999" stroke-dasharray="2 2"/>`);
+    for (const sl of sols) {
+      if (sl.mat !== 'front' && sl.mat !== 'top' && !/Цоколь/.test(sl.part.base)) continue;
+      const [a, b, c, d] = pr(sl);
+      o.push(`<rect x="${X(a)}" y="${Y(d)}" width="${(b - a) * s}" height="${(d - c) * s}" fill="${sl.mat === 'top' ? '#868e96' : sl.mat === 'front' ? '#f1ece2' : '#ced4da'}" stroke="#333" stroke-width=".7"/>`);
+    }
+    if (cat !== 'counter') o.push(`<text x="${X((u0 + u1) / 2)}" y="${Y((it.ext.z0 + it.ext.z1) / 2)}" font-size="9" text-anchor="middle" fill="#222">${esc(it.item.label)}</text>`);
+    (cat === 'wall' ? up : cat === 'counter' ? [] : base).push([u0, u1]);
+  }
+  const ch = (ivs, y, upw) => { const pts = chain([0, el.len, ...ivs.flat()].filter((v) => v >= -1 && v <= el.len + 1)); for (let i = 0; i < pts.length - 1; i++) dimLine(o, X(pts[i]), X(pts[i + 1]), y, K.f1(pts[i + 1] - pts[i]), upw); };
+  ch(base, Y(0) + 12, false); ch(up, Y(el.H) - 8, true);
+  dimLine(o, X(0), X(el.len), Y(0) + 40, K.f1(el.len) + ' (длина стены)', false);
+  { const js = [0, ...(el.joints || []), el.len]; if (js.length > 2) for (let i = 0; i < js.length - 1; i++) dimLine(o, X(js[i]), X(js[i + 1]), Y(0) + 24, K.f1(js[i + 1] - js[i]), false); }
+  const zs = chain([0, el.H, ...el.marks]);
+  for (let i = 0; i < zs.length - 1; i++) dimV(o, X(0) - 18, Y(zs[i]), Y(zs[i + 1]), K.f1(zs[i + 1] - zs[i]));
+  dimV(o, X(0) - 44, Y(0), Y(el.H), K.f1(el.H));
+  return `<svg class="psvg" width="${Wp + L + 30}" height="${Hp + T + 50}" style="max-width:100%">${o.join('')}</svg>`;
+};
+// Чертёж корпуса: вид спереди и сбоку (локальные координаты модуля)
+K.cabSVG = function (b) {
+  const sc = b.built.sc, parts = b.built.parts, bb = (p, i, j) => { const V = p.P.concat(p.P.map((v) => [v[0] + p.e[0], v[1] + p.e[1], v[2] + p.e[2]])); return [Math.min(...V.map((v) => v[i])), Math.max(...V.map((v) => v[i])), Math.min(...V.map((v) => v[j])), Math.max(...V.map((v) => v[j]))]; };
+  const all = parts.map((p) => bb(p, 0, 2)), zmin = Math.min(...all.map((q) => q[2])), zmax = Math.max(...all.map((q) => q[3]));
+  const xmin = Math.min(...all.map((q) => q[0])), xmax = Math.max(...all.map((q) => q[1]));
+  const sideB = parts.map((p) => bb(p, 1, 2)), ymin = Math.min(...sideB.map((q) => q[0])), ymax = Math.max(...sideB.map((q) => q[1]));
+  const s = Math.min(240 / Math.max(xmax - xmin, 1), 230 / Math.max(zmax - zmin, 1), 170 / Math.max(ymax - ymin, 1));
+  const T = 22, L = 46, Hp = (zmax - zmin) * s, o = [], Z = (z) => T + Hp - (z - zmin) * s;
+  const X1 = (x) => L + (x - xmin) * s, X2off = L + (xmax - xmin) * s + 90, X2 = (y) => X2off + (y - ymin) * s;
+  const ord = parts.map((p, i) => i).sort((a, c) => (parts[a].mat === 'front') - (parts[c].mat === 'front'));
+  for (const i of ord) { const p = parts[i], q = all[i], f = p.mat === 'front'; o.push(`<rect x="${X1(q[0])}" y="${Z(q[3])}" width="${(q[1] - q[0]) * s}" height="${(q[3] - q[2]) * s}" fill="${f ? 'rgba(241,236,226,.85)' : 'none'}" stroke="${f ? '#333' : '#aaa'}" stroke-width="${f ? .8 : .5}"/>`); }
+  for (const i of parts.map((p, k) => k)) { const q = sideB[i], p = parts[i]; o.push(`<rect x="${X2(q[0])}" y="${Z(q[3])}" width="${(q[1] - q[0]) * s}" height="${(q[3] - q[2]) * s}" fill="${p.mat === 'front' ? '#f1ece2' : 'none'}" stroke="${p.mat === 'front' ? '#333' : '#888'}" stroke-width=".6"/>`); }
+  // размеры: ширина, высота, фасады
+  dimLine(o, X1(0), X1(sc.W), Z(zmin) + 14, K.f1(sc.W), false);
+  const fr = parts.filter((p) => p.mat === 'front').map((p) => bb(p, 0, 2));
+  const fx = chain(fr.flatMap((q) => [q[0], q[1]])); for (let i = 0; i < fx.length - 1; i++) dimLine(o, X1(fx[i]), X1(fx[i + 1]), Z(zmax) - 6, K.f1(fx[i + 1] - fx[i]), true);
+  const fz = chain(fr.flatMap((q) => [q[2], q[3]]).concat([zmin, 0])); for (let i = 0; i < fz.length - 1; i++) dimV(o, X1(xmin) - 12, Z(fz[i]), Z(fz[i + 1]), K.f1(fz[i + 1] - fz[i]));
+  dimV(o, X1(xmin) - 32, Z(zmin), Z(zmax), K.f1(zmax - zmin));
+  dimLine(o, X2(0), X2(sc.D), Z(zmin) + 14, 'D ' + K.f1(sc.D), false);
+  dimLine(o, X2(ymin), X2(0), Z(zmin) + 28, K.f1(-ymin), false);
+  if (b.item.wallOff) o.push(`<text x="${X2(sc.D) + 4}" y="${Z(zmax) + 10}" font-size="8" fill="#555">+${K.f1(b.item.wallOff)} до стены</text>`);
+  o.push(`<text x="${L}" y="12" font-size="9" fill="#555">вид спереди</text><text x="${X2off}" y="12" font-size="9" fill="#555">вид сбоку (фронт слева)</text>`);
+  return `<svg class="psvg" width="${X2(ymax) + 60}" height="${Hp + T + 46}">${o.join('')}</svg>`;
+};
+
 K.specHTML = function (builds, S, opts) {
   opts = opts || {};
   const L = [];
@@ -120,6 +188,16 @@ K.specHTML = function (builds, S, opts) {
     for (const { p, cabs, qty } of figs.values()) L.push(`<div class="pcard"><b>${esc(p.base)} ×${qty}</b> <span class="note">${esc([...cabs].join(', '))}; ${esc(p.md.name)} ${f1(p.T)} мм</span>${K.polySVG(p)}<ul><li>Вершины: ${p.cutPts.map((v, i) => `${i + 1}(${f1(v[0])}; ${f1(v[1])})`).join(' ')}</li><li>Кромка: ${edgeStr(p)}, ${f1(p.edgeLen / 1000)} м</li></ul></div>`);
     L.push(`</div>`);
   }
+  // чертежи
+  if ((opts.elev || []).length) {
+    L.push(`<h2>Развёртки стен (мм)</h2>`);
+    for (const el of opts.elev) L.push(`<h3>${esc(el.title)}</h3>` + K.elevSVG(el));
+  }
+  L.push(`<h2>Чертежи корпусов (мм)</h2><div class="drillgrid">`);
+  const seenC = new Map();
+  for (const b of builds) { if (b.mod.cat === 'counter') continue; const key = b.mod.id + JSON.stringify(b.item.p) + (b.item.wallOff || 0); const g = seenC.get(key); if (g) g.labels.push(b.item.label); else seenC.set(key, { b, labels: [b.item.label] }); }
+  for (const { b, labels } of seenC.values()) L.push(`<div class="pcard" style="max-width:none"><b>${esc(labels.join(', '))} — ${esc(b.mod.name)}</b><br>${K.cabSVG(b)}</div>`);
+  L.push(`</div>`);
   // 5
   L.push(`<h2>5. Инструкция по сборке</h2>`);
   const mods = new Map(); for (const { mod } of builds) mods.set(mod.id, mod);
@@ -139,10 +217,11 @@ K.cutCSV = function (builds) {
 K.fusionParts = function (builds) {
   const parts = [];
   for (const { item, built } of builds) for (const b of K.worldSolids(item, built)) {
-    const xs = b.pts.map((v) => v[0]), ys = b.pts.map((v) => v[1]);
-    parts.push({ cab: item.label, name: b.part.name, material: b.mat, poly: b.pts.map((v) => v.map(K.r1)), z0: K.r1(b.z0), z1: K.r1(b.z1), min: [Math.min(...xs), Math.min(...ys), b.z0].map(K.r1), max: [Math.max(...xs), Math.max(...ys), b.z1].map(K.r1) });
+    const V = K.solidVerts(b);
+    parts.push({ cab: item.label, name: b.part.name, material: b.mat, P: b.P3.map((v) => v.map(K.r1)), e: b.e.map(K.r1),
+      min: [0, 1, 2].map((k) => K.r1(Math.min(...V.map((v) => v[k])))), max: [0, 1, 2].map((k) => K.r1(Math.max(...V.map((v) => v[k])))) });
   }
-  return { format: 'kitchen-parts/2', units: 'mm', up: 'Z', parts };
+  return { format: 'kitchen-parts/3', units: 'mm', up: 'Z', parts };
 };
 K.esc = esc; K.f1 = f1;
 })(window.K = window.K || {});
