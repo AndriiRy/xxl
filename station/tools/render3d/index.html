@@ -1,0 +1,32 @@
+<!doctype html><html><body style="margin:0;background:#fff">
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {STLLoader} from './node_modules/three/examples/jsm/loaders/STLLoader.js';
+const q = new URLSearchParams(location.search); const V = +q.get('v') || 0, AZ = +q.get('az') || -55, EL = +q.get('el') || 18;
+const W = 900, H = 800, r = new THREE.WebGLRenderer({antialias: true, preserveDrawingBuffer: true});
+r.setSize(W, H); r.setPixelRatio(2); r.setClearColor(0xffffff); document.body.appendChild(r.domElement);
+const sc = new THREE.Scene(); sc.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 1.6));
+const dl = new THREE.DirectionalLight(0xffffff, 2.2); dl.position.set(150, -250, 350); sc.add(dl);
+const dl2 = new THREE.DirectionalLight(0xffffff, 0.8); dl2.position.set(-200, 200, 100); sc.add(dl2);
+const L = new STLLoader(), get = n => new Promise(res => L.load('stl/' + n + '.stl', g => { g.computeVertexNormals(); res(g); }));
+const mat = c => new THREE.MeshStandardMaterial({color: c, roughness: .55, metalness: .05, flatShading: false});
+const ZB = 26, ZD = 66, ZT = 88, AX = 64, PH = 104, HZ = 22, root = new THREE.Group(); sc.add(root);
+async function add(n, c, f) { const m = new THREE.Mesh(await get(n), mat(c)); f && f(m); root.add(m); return m; }
+await add('base', 0x4a4d55, m => m.position.z = ZB);
+await add('housing', 0x7d828c, m => m.position.z = ZB + 5);
+for (const [x, y] of [[40, 68], [40, -68], [-98, 0]]) await add('foot', 0x222222, m => { m.scale.z = -1; m.position.set(x, y, ZB); });
+await add('hz_drum', 0xe8892a, m => m.position.z = ZD);
+await add('alidade', 0x4f7fb8, m => m.position.z = ZT);
+await add('pod_lid_l', 0x5b8cc6, m => m.position.z = ZT + PH);
+await add('pod_lid_r', 0x5b8cc6, m => m.position.z = ZT + PH);
+const hg = new THREE.Group(); hg.position.z = ZT + AX; hg.rotation.x = V * Math.PI / 180; root.add(hg);
+hg.add(new THREE.Mesh(await get('head'), mat(0xeeeeee)));
+const hl = new THREE.Mesh(await get('head_lid'), mat(0xeeeeee)); hl.position.z = HZ; hg.add(hl);
+await add('v_drum', 0xe8892a, m => { m.rotation.y = -Math.PI / 2; m.position.set(-33, 0, ZT + AX); });
+if (V == -90) { const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, ZT + AX)]); root.add(new THREE.Line(g, new THREE.LineBasicMaterial({color: 0xff0000}))); }
+const cam = new THREE.PerspectiveCamera(28, W / H, 10, 5000); cam.up.set(0, 0, 1);
+const d = 560, a = AZ * Math.PI / 180, e = EL * Math.PI / 180;
+cam.position.set(d * Math.cos(e) * Math.cos(a), d * Math.cos(e) * Math.sin(a), 95 + d * Math.sin(e)); cam.lookAt(0, 0, 95);
+r.render(sc, cam); document.title = 'done';
+</script></body></html>
