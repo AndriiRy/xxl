@@ -15,7 +15,7 @@ PACK_X = -25 - (N_CELL*21.6 + N_CELL - 1)/2; MOT_X = 60 + 3.8; mz = AXLE_Z - (35
 K = 1.27e-3*0.62/1000
 it = []
 for fn, off, rot in (("base.stl", Z_BASE, 0), ("housing.stl", Z_BASE + BASE_T, 0), ("hz_drum.stl", Z_DRUM, 1), ("alidade.stl", Z_TOP, 1),
-                     ("pod_lid_l.stl", Z_TOP + AXLE_Z + 34, 1), ("pod_lid_r.stl", Z_TOP + AXLE_Z + 34, 1), ("head.stl", Z_TOP + AXLE_Z, 1), ("v_drum.stl", Z_TOP + AXLE_Z, 1)):
+                     ("pod_lid_l.stl", Z_TOP + 104, 1), ("pod_lid_r.stl", Z_TOP + 104, 1), ("head.stl", Z_TOP + AXLE_Z, 1), ("v_drum.stl", Z_TOP + AXLE_Z, 1)):
     v, c = stl(fn); c = np.array(c); c[2] += off
     if fn == "v_drum.stl": c = np.array([-26 - 6 - 1 - 7, 0, Z_TOP + AXLE_Z])
     it.append((fn[:-4], v*K, c, rot))
