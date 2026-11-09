@@ -22,7 +22,7 @@ for fn, off, rot in (("base.stl", Z_BASE, 0), ("housing.stl", Z_BASE + BASE_T, 0
 fixed = [(f"АКБ {N_CELL}x21700", N_CELL*CELL_M, (PACK_X, 0, Z_BASE + BASE_T + 11)), ("BMS, выкл., гнездо, индикатор", 0.03, (-10, 0, Z_BASE + 15)),
          ("NEMA17 блин Hz", 0.15, (MOT_X, 0, Z_BASE + BASE_T + H_BOX - TOP_T - 11.5)), ("труба + 2x6806 + хомут", 0.07, (0, 0, Z_DRUM)),
          ("ножки, шпильки", 0.06, (0, 0, 12))]
-rot = [("NEMA17 блин V", 0.15, (-26 - 6 - 14 - 5 - 11.5, 0, Z_TOP + mz)), ("608x2 + болты М8", 0.06, (0, 0, Z_TOP + AXLE_Z)),
+rot = [("NEMA17 блин V", 0.15, (-26 - 6 - 14 - 6 - 11.5, 0, Z_TOP + mz)), ("608x2 + болты М8", 0.06, (0, 0, Z_TOP + AXLE_Z)),
        ("дальномер + камера + MPU6050", 0.05, (0, 5, Z_TOP + AXLE_Z)), ("Pi 4 (без корпуса, радиатор)", 0.06, (65, 0, Z_TOP + 45)), ("Nano + 2 драйвера + mini560 + INA219", 0.04, (45, 0, Z_TOP + 40))]
 it += [(n, m, np.array(c, float), 0) for n, m, c in fixed] + [(n, m, np.array(c, float), 1) for n, m, c in rot]
 M = sum(i[1] for i in it)

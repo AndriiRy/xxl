@@ -20,7 +20,7 @@ MOT_X = HZ_D/2 + SHAFT_R + CORD + 0.3;                  // ось мотора H
 // ---------- V ----------
 V_D = 70; V_W = 14; V_TURNS = 1.6;                      // передача 70,5/6,5 = 1:10,8
 AXLE_Z = 64;                                            // ось V над верхом Hz-барабана (луч вниз до -46° мимо барабана)
-POD_IN = 26; POD_WALL = 6; POD_Y = 32;                  // внутренняя грань башен, толщина, полуширина
+POD_IN = 26; POD_WALL = 6; POD_Y = 39.5;                  // внутренняя грань башен, толщина, полуширина
 POD_LX = 83; POD_RX = 73;                               // наружные грани башен (лев. — мотор V, прав. — электроника)
 POD_H = AXLE_Z + V_D/2 + 5;                             // высота башен (барабан V под крышкой с зазором 2,5 мм)
 LID_T = 4; POD_R = 8;                                   // крышки башен, радиус наружных углов башен
@@ -104,7 +104,7 @@ module housing() {
     }
 }
 function boss_pts() = [[PACK_X0 + 4, PACK_Y - 0.5], [PACK_X0 + 4, -PACK_Y + 0.5], [PACK_X1 - 4, PACK_Y + WALL + 3 - 6], [PACK_X1 - 4, -PACK_Y - WALL - 3 + 6],
-                       [0, R_BOX - 6], [28, -R_BOX + 9], [MOT_X + MOT/2 - 2, MOT/2 - 2], [MOT_X + MOT/2 - 2, -MOT/2 + 2]];
+                       [0, R_BOX - 6], [28, -R_BOX + 9], [62, 36], [62, -36]];
 
 // ================= ДНО: ложементы банок, 3 конуса, отвес, гайка штатива 1/4" =================
 // Печать плоско. Банки — на 2 ложементах + двусторонний скотч/вспененная лента, сверху прижимает крышка корпуса.
@@ -168,7 +168,7 @@ module alidade() {
         // 608 во внутренних стенках: гнездо со стороны полости, буртик 1 мм к голове
         for (s = [-1, 1]) translate([s*(POD_IN + POD_WALL + 0.01), 0, AXLE_Z]) rotate([0, -s*90, 0]) { cylinder(d = B_OD, h = B_W); cylinder(d = 14, h = POD_WALL + 2); }
         // мотор V: фланец на внутренней перегородке левой башни (вал к барабану V)
-        translate([-POD_IN - POD_WALL - V_W - 5 - 0.01, 0, mz]) rotate([0, -90, 0]) motor_holes(5);
+        translate([-POD_IN - POD_WALL - V_W - 6 - 0.01, 0, mz]) rotate([0, -90, 0]) motor_holes(5);
         // центр: труба/хомут, провода из трубы -> в правую башню (канал в основании)
         translate([0, 0, -1]) cylinder(d = 40, h = 10);
         translate([0, -7, 1]) cube([POD_IN + POD_WALL + 3, 14, 4]);
@@ -181,8 +181,8 @@ module alidade() {
     }
     // перегородка мотора V (левая башня)
     difference() {
-        translate([-POD_IN - POD_WALL - V_W - 5, -POD_Y + 1.5, 1]) cube([4, 2*POD_Y - 3, mz + MOT/2 + 2]);
-        translate([-POD_IN - POD_WALL - V_W - 6, 0, mz]) rotate([0, 90, 0]) motor_holes(7);
+        translate([-POD_IN - POD_WALL - V_W - 6, -POD_Y + 1.5, 1]) cube([4, 2*POD_Y - 3, mz + MOT/2 + 2]);
+        translate([-POD_IN - POD_WALL - V_W - 7, 0, mz]) rotate([0, 90, 0]) motor_holes(7);
     }
     // стойки винтов крышек М3 (с косынкой к стенке — печать без поддержек)
     intersection() {
@@ -283,7 +283,7 @@ module assembly(v = 0) {
         for (s = [-1, 1]) color("steelblue", 0.6) translate([0, 0, POD_H]) pod_lid(s);
         translate([0, 0, AXLE_Z]) rotate([v, 0, 0]) { color("white") head(); color("white") translate([0, 0, HEAD_Z]) head_lid(); }
         color("orange") translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum();
-        color("black") translate([-POD_IN - POD_WALL - V_W - 5 - MOT_L, -MOT/2, AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3) - MOT/2]) cube([MOT_L, MOT, MOT]);
+        color("black") translate([-POD_IN - POD_WALL - V_W - 6 - MOT_L, -MOT/2, AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3) - MOT/2]) cube([MOT_L, MOT, MOT]);
     }
 }
 echo(BEAM_H = Z_TOP + AXLE_Z, Z_BASE = Z_BASE, POD_H = POD_H, TOTAL_H = Z_TOP + POD_H + LID_T);
