@@ -14,6 +14,7 @@ import numpy as np
 import station as S
 import scan2dxf
 import room3d
+import layout as LY
 S_cfg_path = lambda: S.CFG_PATH
 
 
@@ -28,8 +29,10 @@ class App:
         self.file_cal = (json.load(open(S.CFG_PATH)).get("cal", {}) if os.path.exists(S.CFG_PATH) else {})
         self.lock = threading.Lock()
         self.busy = None; self.progress = 0.0; self.error = None; self.stop = False
-        self.log = []; self.last = {}; self.zref = None; self.marks = {}
+        self.log = []; self.last = {}; self.zref = None; self.marks = {}; self.alert = None
+        self.targets = []; self.lay = {}; self.sel = None; self.stk = None; self.chk = None; self.cmp = None; self.lres = None
         projs = self.projects(); self.project = projs[0] if projs else None
+        self.load_layout()
 
     # ---------- проекты ----------
     def projects(self):
@@ -43,7 +46,7 @@ class App:
     def new_project(self, name):
         name = re.sub(r"[^\w\-]+", "_", name.strip(), flags=re.U)[:40] or "obj"
         p = time.strftime("%Y%m%d_%H%M_") + name; os.makedirs(os.path.join(self.root, p), exist_ok=True)
-        self.project = p; return p
+        self.project = p; self.load_layout(); return p
 
     # ---------- журнал ----------
     def say(self, s):
@@ -63,6 +66,9 @@ class App:
         if self.st is None:
             self.say("подключение к станции" + (" (симуляция)" if self.sim else ""))
             self.st = S.Station(self.cfg, self.sim)
+            with contextlib.suppress(Exception):                # перезапуск программы: ноль V — с наклоном из калибровки стоянки
+                cur = self.cur(self.proj())
+                if self.calibrated(cur): self.cfg["cal"].update(cur["cal"]); self.st.v_home(); print("  калибровка стоянки восстановлена")
         return self.st
 
     # ---------- задания (одно за раз, в фоне) ----------
@@ -77,6 +83,8 @@ class App:
                 self.say(f"готово: {name}")
             except Abort:
                 self.say("остановлено"); self.error = "остановлено"
+            except S.Moved as e:
+                self.error = self.alert = str(e); self.say("СДВИГ: " + str(e))
             except Exception as e:
                 self.error = f"{type(e).__name__}: {e}"; self.say("ОШИБКА " + self.error)
                 self.say(traceback.format_exc(limit=4))
@@ -108,7 +116,10 @@ class App:
         return json.load(open(p)) if os.path.exists(p) else None
 
     def setup_T(self, name):
-        """Кадр стоянки -> кадр проекта (R 3x3, t) из model.json."""
+        """Кадр стоянки -> кадр проекта (R 3x3, t): свободная станция (если есть), иначе model.json."""
+        with contextlib.suppress(Exception):
+            for s in self.proj()["setups"]:
+                if s["name"] == name and s.get("resect"): return np.array(s["resect"]["R"]), np.array(s["resect"]["t"])
         m = self.model()
         for s in (m or {}).get("setups", []):
             if s.get("name") == name and s.get("R"): return np.array(s["R"]), np.array(s["t"])
@@ -122,11 +133,15 @@ class App:
         return "tilt_x" in st["cal"]
 
     def job_calib(self, full=False, save_v0=True):
-        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        st_ = self.station(); S = self.proj(); cur = self.cur(S); self.cfg["cal"].pop("imu_b", None); self.alert = None
         self.progress = 0.05; st_.v_home(); st_.move_deg(st_.pos_deg()[0], 0)
         self.progress = 0.1; st_.level(); st_.v_home(); self.progress = 0.4
         if full or self.sim or "v0" not in self.file_cal: st_.v_index()
         else: print(f"  индекс V из config.json: {self.cfg['cal']['v0']:+.4f}° (полная калибровка — кнопка «Индекс V»)")
+        st_.move_deg(0, 0); st_.tilt_arm(); print("  компенсатор включён: наклон контролируется в каждом замере")
+        if cur.get("resect"):
+            cur["resect"]["stale"] = True
+            print("  свободная станция — от прошлой установки: если станцию двигали, повторите «Своб. станция» (проверка — «Проверка ст.»)")
         self.progress = 1.0
         cur["cal"] = dict(self.cfg["cal"]); self.save(S)
         if save_v0 and not self.sim:
@@ -183,7 +198,7 @@ class App:
     def job_mount(self, m):
         if m not in self.cfg["mounts"]: raise ValueError("установка: tripod | floor | table")
         self.cfg["mount"] = m; S = self.proj(); cur = self.cur(S); cur["mount"] = m
-        for k in ("tilt_x", "tilt_y"): cur["cal"].pop(k, None); self.cfg["cal"].pop(k, None)
+        for k in ("tilt_x", "tilt_y", "imu_b"): cur["cal"].pop(k, None); self.cfg["cal"].pop(k, None)
         self.save(S); print(f"  установка: {dict(tripod='штатив', floor='пол (ножки)', table='стол/столешница')[m]} — нужна «Калибровка»")
 
     def _quick_xyz(self, cur, raw):
@@ -225,7 +240,8 @@ class App:
         S = self.proj(); name = name or f"S{len(S['setups']) + 1}"
         if any(s["name"] == name for s in S["setups"]): raise ValueError("имя занято")
         S["setups"].append(self._new_setup(name)); self.save(S)
-        for k in ("tilt_x", "tilt_y"): self.cfg["cal"].pop(k, None)
+        for k in ("tilt_x", "tilt_y", "imu_b"): self.cfg["cal"].pop(k, None)
+        self.stk = self.chk = None
         print(f"  новая стоянка {name}: перенесите станцию, «Калибровка», замерьте ≥2 (лучше 3) опорные точки, «Скан»")
 
     def job_level(self, h, hz0, hz1, step):
@@ -313,6 +329,157 @@ class App:
     def job_zero(self):
         st_ = self.station(); st_.ard.zero(); self.say("текущее положение = 0")
 
+    # ---------- вынос проекта (как Leica iCON) ----------
+    def load_layout(self):
+        self.targets, self.lay, self.sel = [], {}, None
+        with contextlib.suppress(Exception):
+            self.lay = json.load(open(os.path.join(self.pdir(), "layout.json")))
+            if self.lay.get("file"): self.set_layout(self.lay, save=False)
+
+    def upload(self, name, data):
+        name = re.sub(r"[^\w\-.]+", "_", os.path.basename(name), flags=re.U)[:60] or "project.dxf"
+        if not name.lower().endswith(".dxf"): raise ValueError("нужен .dxf")
+        open(os.path.join(self.pdir(), name), "wb").write(data)
+        return dict(file=name, layers=LY.dxf_info(os.path.join(self.pdir(), name)))
+
+    def set_layout(self, p, save=True):
+        f = os.path.join(self.pdir(), os.path.basename(p["file"]))
+        self.targets = LY.targets(f, self.model(), p); self.lay = dict(p); self.sel = 1 if self.targets else None
+        self.lay["layers_all"] = LY.dxf_info(f)
+        if save: json.dump(self.lay, open(os.path.join(self.pdir(), "layout.json"), "w"), ensure_ascii=False)
+        return len(self.targets)
+
+    def _target(self, i):
+        t = next((t for t in self.targets if t["id"] == int(i)), None)
+        if t is None: raise ValueError("нет такой точки — загрузите DXF")
+        return t
+
+    def _ready(self):
+        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        if not self.calibrated(cur): raise RuntimeError("сначала «Калибровка» стоянки")
+        self.cfg["cal"].update(cur["cal"]); T = self.setup_T(cur["name"])
+        if T is None: raise RuntimeError("стоянка не привязана к проекту: «Скан» с опорными марками или «Свободная станция»")
+        return st_, S, cur, T
+
+    def _stake(self, st_, P, n):
+        """Точка проекта -> луч точно на неё по реальной поверхности. -> (попадание в кадре проекта, отчёт)."""
+        R, t = self._T; c = self.cfg["stake"]
+        def meas(Q):
+            p = st_.point(*st_.aim(Q)); return st_.xyz(p)
+        Pst = R.T @ (np.asarray(P, float) - t); nst = None if n is None else R.T @ np.asarray(n, float)
+        av = self.cfg["avg"]; self.cfg["avg"] = max(av, c.get("avg", 3))
+        try: X, r = LY.stake(meas, Pst, nst, c["iters"], c["tol_mm"])
+        finally: self.cfg["avg"] = av
+        if nst is not None:                                           # угол падения луча на поверхность
+            r["inc"] = float(np.degrees(np.arccos(min(1, abs(X @ nst)/np.linalg.norm(X)/np.linalg.norm(nst)))))
+        return R @ X + t, r
+
+    def job_stake(self, i):
+        st_, S, cur, self._T = self._ready(); tg = self._target(i); self.sel = tg["id"]
+        if tg["kind"] == "line": P = (np.array(tg["A"]) + np.array(tg["B"]))/2; print("  линия: наводка на середину (весь отрезок — «Линия»)")
+        else: P = np.array(tg["P"])
+        if (cur.get("resect") or {}).get("stale"): print("  ВНИМАНИЕ: свободная станция от прошлой установки — «Своб. станция» или «Проверка ст.»")
+        st_.tilt_guard()
+        try: H, r = self._stake(st_, P, tg.get("n"))
+        except RuntimeError as e: raise RuntimeError(f"точка {tg['id']} не видна с этой стоянки ({e}) — переставьте станцию")
+        st_.las.pointer(True)
+        e = H - P; self.stk = dict(id=tg["id"], name=tg["name"], P=P.tolist(), hit=H.tolist(), **r)
+        sv = "" if r["free"] else (f", поверхность {'выступает' if r['dev'] > 0 else 'утоплена'} на {abs(r['dev']):.1f} мм" if abs(r["dev"]) >= 0.5 else ", поверхность в проекте")
+        print(f"  вынос {tg['id']} «{tg['name']}»: X{P[0]:.0f} Y{P[1]:.0f} Z{P[2]:.0f} — лазер на точке, остаток {r['lat']:.1f} мм ({r['it']} изм.){sv}")
+        if r.get("inc", 0) > 70: print(f"  луч падает полого ({r['inc']:.0f}° к нормали) — точность хуже; лучше поставить станцию ближе")
+
+    def job_tie(self, i=None, xyz=None):
+        """Связь «где сейчас луч» <-> «известная точка проекта» (для свободной станции)."""
+        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        if cur["cal"]: self.cfg["cal"].update(cur["cal"])
+        if xyz is not None: P = [float(x) for x in xyz]; nm = "XYZ"
+        else:
+            tg = self._target(i); nm = f"{tg['id']} {tg['name']}"
+            if tg["kind"] != "pt": raise ValueError("привязка — к точке, не к линии")
+            P = list(map(float, tg["P"]))
+        h, v = st_.pos_deg(); D = float(np.median([st_.las.measure() for _ in range(5)]))
+        cur.setdefault("ties", []).append(dict(name=nm, raw=[h, v, D], P=P)); self.save(S)
+        print(f"  привязка: {nm} -> X{P[0]:.0f} Y{P[1]:.0f} Z{P[2]:.0f} (D={D:.1f}); всего {len(cur['ties'])}")
+
+    def job_resect(self):
+        """Свободная станция: ≥2 известные точки (опорные марки прошлых стоянок или точки проекта) -> положение станции."""
+        from scan2dxf import to_xyz
+        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        if not self.calibrated(cur): raise RuntimeError("сначала «Калибровка»")
+        A, B, ids = [], [], []
+        known = {r["id"]: r for r in (self.model() or {}).get("refs", []) if r["setup"] != cur["name"]}
+        for k, raw in cur.get("refs", {}).items():
+            if k in known: A.append(to_xyz(np.array([raw[:3]], float), cur["cal"])[0]); B.append([known[k][q] for q in "xyz"]); ids.append("Т" + k)
+        for tq in cur.get("ties", []):
+            A.append(to_xyz(np.array([tq["raw"][:3]], float), cur["cal"])[0]); B.append(tq["P"]); ids.append(tq["name"])
+        R, t, rep_ = LY.resect(A, B)
+        cur["resect"] = dict(R=R.tolist(), t=t.tolist(), ids=ids, **rep_); self.save(S)
+        print(f"  свободная станция по {rep_['n']} точкам: СКО {rep_['rms']:.1f} мм, max {rep_['max']:.1f} мм, по высоте {rep_['dz']:.1f} мм")
+        for nm, e in zip(ids, rep_["err"]): print(f"    {nm}: {e:.1f} мм" + ("  <- проверьте точку" if e > 3*max(1.0, rep_["rms"]) and rep_["n"] > 2 else ""))
+        print(f"  станция в проекте: X{t[0]:.0f} Y{t[1]:.0f} Z{t[2]:.0f}")
+
+    def job_untie(self):
+        S = self.proj(); cur = self.cur(S); cur["ties"] = []; cur.pop("resect", None); self.save(S); print("  привязки сброшены")
+
+    def job_check(self):
+        """Контроль стоянки: наклон (компенсатор) + повторный замер опорных марок/привязок с теми же углами."""
+        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        if not self.calibrated(cur): raise RuntimeError("сначала «Калибровка»")
+        self.cfg["cal"].update(cur["cal"]); st_.move_deg(0, 0); dv = st_.tilt_dev(); tol = self.cfg["check_tol_mm"]; rows = []
+        items = [("Т" + k, r) for k, r in cur.get("refs", {}).items()] + [(q["name"], q["raw"]) for q in cur.get("ties", [])]
+        for nm, raw in items:
+            if self.stop: raise Abort()
+            st_.move_deg(raw[0], raw[1]); st_.las.pointer(True)
+            if not self.sim: time.sleep(2.0)                                      # видно, где лазер относительно марки
+            D = float(np.median([st_.las.measure() for _ in range(3)])); rows.append(dict(name=nm, dD=D - raw[2]))
+            print(f"  {nm}: ΔD {D - raw[2]:+.1f} мм — лазер в центре марки?")
+        bad = (dv is not None and dv > self.cfg["tilt_watch"]["tol_deg"]) or any(abs(r["dD"]) > tol for r in rows)
+        self.chk = dict(tilt=dv, rows=rows, ok=not bad, t=time.strftime("%H:%M"))
+        print(f"  наклон: {'—' if dv is None else f'{dv:.3f}°'}; " + ("СТАНЦИЯ СДВИНУТА — «Калибровка» и «Свободная станция»" if bad else "стоянка в порядке"))
+        if bad: self.alert = "стоянка сдвинута — «Калибровка» и «Свободная станция»"
+        elif not rows: print("  нет опорных марок на этой стоянке — проверен только наклон")
+
+    def job_line(self, p):
+        """Лазерная линия: точки по отрезку DXF или по уровню на стене; луч ходит туда-обратно до «Стоп»."""
+        st_, S, cur, self._T = self._ready(); c = self.cfg["stake"]; step = float(p.get("step") or c["line_step_mm"])
+        if p.get("id"):
+            tg = self._target(p["id"])
+            if tg["kind"] != "line": raise ValueError("выберите линию из DXF")
+            Q = LY.line_points(tg["A"], tg["B"], step); n = tg.get("n"); nm = tg["name"]
+        else:
+            room = LY.room_at(self.model(), (0, 0), p.get("room")); fr = LY.wall_frame(room, p["wall"], int(p.get("corner", 0)))
+            u0, u1, h = float(p.get("u0", 50)), float(p.get("u1", 0) or fr["L"] - 50), float(p["h"])
+            Q = [np.r_[fr["o"] + u*fr["d"], fr["zo"] + h] for u in np.linspace(u0, u1, max(2, int(abs(u1 - u0)/step) + 1))]
+            n = np.r_[fr["n"], 0.0]; nm = f"{p['wall']} H{h:.0f} от угла {fr['corner']}"
+        R, t = self._T; exact = bool(p.get("exact", True)); ang, dev = [], []
+        st_.tilt_guard(); orig = self._wrap_point(st_, len(Q)*(2.5 if exact else 0))
+        try:
+            for P in Q:
+                if exact:
+                    H, r = self._stake(st_, P, n); dev.append(r["dev"]); ang.append(st_.pos_deg())
+                else: ang.append(st_.aim(R.T @ (np.asarray(P, float) - t)))
+        finally: st_.point = orig
+        self.lres = dict(name=nm, n=len(Q), dev=[min(dev), max(dev)] if dev else None)
+        if dev: print(f"  линия «{nm}»: {len(Q)} точек, поверхность {min(dev):+.1f}…{max(dev):+.1f} мм от проекта")
+        passes = int(p.get("passes", 0)) or 100000; st_.las.pointer(True)
+        print("  лазер ведёт линию — отмечайте; «Стоп» — закончить")
+        for k in range(passes):
+            for a in (ang if k % 2 == 0 else ang[::-1]):
+                if self.stop: raise Abort()
+                st_.move_deg(*a)
+                if not self.sim: time.sleep(c["line_dwell_s"])
+            self.progress = (k + 1)/passes if passes < 100000 else 0.5
+
+    def job_compare(self, file, layers):
+        m = self.model()
+        if not m: raise RuntimeError("сначала «Скан»")
+        f = os.path.join(self.pdir(), os.path.basename(file))
+        self.cmp = LY.compare(f, layers, m, os.path.join(self.pdir(), "compare.dxf"))
+        json.dump(self.cmp, open(os.path.join(self.pdir(), "compare.json"), "w"), ensure_ascii=False)
+        for w in self.cmp["walls"]:
+            print(f"  {w['wall']}: " + ("нет пары в проекте" if w["off_a"] is None else f"{w['off_a']:+.1f} / {w['off_b']:+.1f} мм, угол {w['ang']:+.2f}°, L {w['len']:.0f} (проект {w['len_p']:.0f})"))
+        print("  compare.dxf: PROJECT — проект, FACT — факт, DEVIATION — отклонения")
+
     # ---------- данные для экрана ----------
     def state(self):
         pos = None
@@ -332,7 +499,17 @@ class App:
         return {"busy": self.busy, "progress": self.progress, "error": self.error, "log": self.log[-60:],
                 "project": self.project, "projects": self.projects(), "pos": pos, "last": self.last,
                 "sim": self.sim, "setups": setups, "zref": self.zref, "marks": self.marks, "mount": self.cfg["mount"],
-                "quick": quick, "batt": batt}
+                "quick": quick, "batt": batt, "alert": self.alert, "lay": self.lay_state()}
+
+    def lay_state(self):
+        r = None
+        with contextlib.suppress(Exception):
+            c = self.cur(self.proj()); rs = c.get("resect")
+            r = dict(ties=[q["name"] for q in c.get("ties", [])], resect=None if not rs else {k: rs.get(k) for k in ("n", "rms", "max", "dz", "ids", "err", "stale")})
+        f = lambda v: None if v is None else np.round(np.asarray(v, float), 1).tolist()
+        T = [dict(id=t["id"], name=t["name"], kind=t["kind"], P=f(t.get("P")), A=f(t.get("A")), B=f(t.get("B")), src=f(t["src"]),
+                  note=t["note"], layer=t["layer"]) for t in self.targets[:600]]
+        return dict(p=self.lay, targets=T, sel=self.sel, stake=self.stk, check=self.chk, cmp=self.cmp, line=self.lres, st=r)
 
     def room(self, p=None):
         d = self.pdir(p); m = self.model() if p in (None, self.project) else None
@@ -392,6 +569,15 @@ class H(BaseHTTPRequestHandler):
 
     def do_POST(self):
         A = self.app
+        u = urlparse(self.path)
+        if u.path == "/api/upload":                       # DXF проекта (тело — файл)
+            try:
+                n = int(self.headers.get("Content-Length", 0))
+                if n > 30_000_000: raise ValueError("файл > 30 МБ")
+                if not A.project: A.new_project("obj")
+                return self.send(200, A.upload(parse_qs(u.query).get("name", ["project.dxf"])[0], self.rfile.read(n)))
+            except Exception as e:
+                return self.send(400, {"error": str(e)})
         try:
             n = int(self.headers.get("Content-Length", 0)); b = json.loads(self.rfile.read(n) or b"{}")
             c = b.get("cmd")
@@ -401,6 +587,9 @@ class H(BaseHTTPRequestHandler):
                 if b.get("project") not in A.projects(): raise ValueError("нет проекта")
                 A.project = b["project"]; return self.send(200, {"ok": 1})
             if not A.project: A.new_project("obj")
+            if c == "layout": return self.send(200, {"n": A.set_layout(b)})
+            if c == "sel": A.sel = int(b["id"]); return self.send(200, {"ok": 1})
+            if c == "alert_ok": A.alert = None; return self.send(200, {"ok": 1})
             if c == "mark":                                  # метки сектора для трассы по уровню
                 A.marks[b["which"]] = A.st.pos_deg()[0] if A.st else 0.0; return self.send(200, A.marks)
             f = lambda k, dflt: float(b.get(k, dflt))
@@ -412,7 +601,10 @@ class H(BaseHTTPRequestHandler):
                     "surface": (A.job_surface, b.get("wall", "A-B"), b.get("kind", "wall"), f("h0", 100), f("h1", 2400),
                                 f("depth", 600), f("step", 100)),
                     "move": (A.job_move, f("dh", 0), f("dv", 0)), "mount": (A.job_mount, b.get("mount", "tripod")),
-                    "qpoint": (A.job_qpoint, "p"), "floorpt": (A.job_qpoint, "f"), "qclear": (A.job_qclear,), "plumb": (A.job_plumb,)}
+                    "qpoint": (A.job_qpoint, "p"), "floorpt": (A.job_qpoint, "f"), "qclear": (A.job_qclear,), "plumb": (A.job_plumb,),
+                    "stake": (A.job_stake, b.get("id", A.sel)), "tie": (A.job_tie, b.get("id"), b.get("xyz")),
+                    "resect": (A.job_resect,), "untie": (A.job_untie,), "check": (A.job_check,), "line": (A.job_line, b),
+                    "compare": (A.job_compare, b.get("file", A.lay.get("file", "")), b.get("layers") or [])}
             if c not in jobs: raise ValueError(f"команда? {c}")
             A.run(c, *jobs[c]); self.send(200, {"ok": 1})
         except Exception as e:

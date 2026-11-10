@@ -26,6 +26,7 @@ CFG_DEFAULT = {
         "offset": 6, "length": 4, "endian": "big",         # binary: поле расстояния, scale: ед. -> мм
         "trigger_gpio": None,         # ручной дальномер: GPIO, замыкающий кнопку через PC817 (напр. 17)
         "presses": 1, "press_ms": 150, "gap_ms": 400,      # сколько нажатий нужно для замера
+        "pointer_hex": "", "pointer_off_hex": "",          # модуль: команды «лазер вкл/выкл» (указка для выноса); ручной — 1 нажатие
     },
     "steps_per_rev_hz": 59323,        # 3200 мкш * (120,5/6,5); уточнить командой calrev
     "steps_per_rev_v": 34708,         # 3200 * (70,5/6,5)
@@ -48,6 +49,11 @@ CFG_DEFAULT = {
     "edge_iter": 8,                    # бисекций на кромку (0,5° / 2^8 = 0,002°)
     "probe_step_deg": 4.0,             # грубый шаг поиска верха/низа ниши
     "max_tilt_deg": 3.0,
+    # компенсатор (как у тахеометра): каждые N замеров MPU6050 сверяется с наклоном из калибровки;
+    # ушёл больше tol — станцию толкнули/просела нога: замер останавливается
+    "tilt_watch": {"every": 25, "tol_deg": 0.03, "n": 100, "settle_s": 0.2},
+    "stake": {"iters": 4, "tol_mm": 0.3, "avg": 3, "line_step_mm": 25, "line_dwell_s": 0.03},
+    "check_tol_mm": 2.0,               # контроль стоянки: допуск по опорным маркам
 }
 CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -60,6 +66,10 @@ def load_cfg():
             if isinstance(v, dict): cfg[k].update(v)
             else: cfg[k] = v
     return cfg
+
+
+class Moved(Exception):
+    """Наклон станции изменился после калибровки (толкнули, просела нога штатива)."""
 
 
 # ---------------- железо ----------------
@@ -106,6 +116,12 @@ class Laser:
             self.btn.on(); time.sleep(self.c["press_ms"] / 1000); self.btn.off()
             if k < self.c["presses"] - 1: time.sleep(self.c["gap_ms"] / 1000)
 
+    def pointer(self, on=True):
+        """Лазер-указка (непрерывный луч) — для выноса точек и линии."""
+        h = self.c.get("pointer_hex" if on else "pointer_off_hex", "")
+        if h: self.s.write(bytes.fromhex(h)); return
+        if on and self.btn is not None: self.btn.on(); time.sleep(self.c["press_ms"] / 1000); self.btn.off()
+
     def raw(self):
         self.s.reset_input_buffer(); self.trigger()
         time.sleep(0.05); buf = b""; t0 = time.time()
@@ -143,6 +159,7 @@ class Sim:
     def raw(self): return f"D={self.measure()/1000:.4f}m\r\n".encode()
     def measure(self): h, v = self.deg(); return self.room.measure(h, v + self.v_off)
     def imu(self): h, v = self.deg(); return self.room.imu(h, v + self.v_off)
+    def pointer(self, on=True): pass
 
 
 class IMU:
@@ -170,7 +187,7 @@ class Station:
         else:
             self.ard = Arduino(cfg["arduino"]["port"], cfg["arduino"]["baud"])
             self.las = Laser(cfg["laser"])
-        self.sim = sim
+        self.sim = sim; self._np = 0
         try: self.v_home()                                     # V известен сразу после включения
         except Exception as e: print(f"  ноль V не найден (нет MPU6050?): {e}")
 
@@ -206,6 +223,8 @@ class Station:
         h, s = self.ard.move(*self.deg2steps(hz, v))
         if not self.sim: time.sleep(self.cfg["settle_s"])
         d = statistics.mean(self.las.measure() for _ in range(self.cfg["avg"]))
+        self._np += 1; w = self.cfg["tilt_watch"]
+        if w.get("every") and "imu_b" in self.cfg["cal"] and self._np % w["every"] == 0: self.tilt_guard()
         return [h / self.cfg["steps_per_rev_hz"] * 360, s / self.cfg["steps_per_rev_v"] * 360, float(d)]
 
     # ---------- углы <-> направление (кадр станции по уровню) ----------
@@ -244,6 +263,36 @@ class Station:
         if not hasattr(self, "_imu"):
             c = self.cfg["imu"]; self._imu = IMU(c["bus"], c["addr"], c["sign"])
         time.sleep(self.cfg["imu"]["settle_s"]); return self._imu.read()
+
+    # ---------- компенсатор: контроль наклона ----------
+    def _imu_pred(self):
+        """Ожидаемые показания MPU6050 (оси X — луч, Y — ось V) при текущих Hz, V и наклоне из калибровки."""
+        hz, v = self.pos_deg(); h, e = math.radians(hz), math.radians(v - self.cfg["cal"].get("v0", 0))
+        u = self.R_tilt().T @ np.array([0, 0, 1.0])
+        eb = np.array([math.cos(e)*math.cos(h), math.cos(e)*math.sin(h), math.sin(e)]); ea = np.array([-math.sin(h), math.cos(h), 0])
+        return np.array([u @ eb, u @ ea])
+
+    def _imu_fast(self):
+        if self.sim: return self.ard.imu()
+        if not hasattr(self, "_imu"):
+            c = self.cfg["imu"]; self._imu = IMU(c["bus"], c["addr"], c["sign"])
+        w = self.cfg["tilt_watch"]; time.sleep(w["settle_s"]); return self._imu.read(w["n"])
+
+    def tilt_arm(self):
+        """После калибровки: запомнить смещение нуля датчика при уже известных наклоне и индексе V."""
+        self.cfg["cal"]["imu_b"] = (self._imu_fast()[:2] - self._imu_pred()).tolist()
+
+    def tilt_dev(self):
+        """Насколько наклон станции ушёл от калибровки, градусы (None — не откалибрована)."""
+        b = self.cfg["cal"].get("imu_b")
+        if b is None: return None
+        return math.degrees(float(np.linalg.norm(self._imu_fast()[:2] - self._imu_pred() - np.array(b))))
+
+    def tilt_guard(self):
+        d = self.tilt_dev(); tol = self.cfg["tilt_watch"]["tol_deg"]
+        if d is not None and d > tol:
+            raise Moved(f"наклон станции изменился на {d:.3f}° (допуск {tol}°) — станцию толкнули? «Калибровка», затем «Проверка стоянки»")
+        return d
 
     # ---------- авто-калибровка ----------
     def level(self):
@@ -376,10 +425,13 @@ class Station:
 
     def measure_grid(self, P):
         """Сетка точек (кадр станции) -> замеры. Змейкой, чтобы меньше ездить."""
-        out = []
+        out = []; miss = 0
         for k, p in enumerate(P):
-            out.append(self.point(*self.aim(p)))
+            hz, v = self.aim(p)
+            try: out.append(self.point(hz, v))
+            except RuntimeError: out.append([hz, v, float("nan")]); miss += 1       # не видно с этой стоянки (под станцией)
             if k % 50 == 0: print(f"  сетка: {k}/{len(P)}", flush=True)
+        if miss: print(f"  пропущено {miss} точек: луч ниже {self.cfg['v_min_deg']}° (под станцией) — домерьте с другой стоянки")
         return out
 
 

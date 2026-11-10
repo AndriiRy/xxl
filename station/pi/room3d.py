@@ -399,6 +399,7 @@ def surface_report(sf, Xp, name, outdir):
     """Стена: зазор до вертикальной плоскости по самой выступающей точке (монтаж шкафов), плоскостность, вертикаль.
     Пол: подъём ножек от самой высокой точки."""
     from PIL import Image, ImageDraw
+    okm = np.isfinite(Xp).all(1); Xp = Xp[okm]                         # пропущенные точки сетки (не видно со стоянки)
     ns, nt = sf["ns"], sf["nt"]; a, b = np.array(sf["a"]), np.array(sf["b"]); d = unit(b - a); nrm = np.array([-d[1], d[0]])
     s = (Xp[:, :2] - a) @ d; z = Xp[:, 2]
     if sf["kind"] == "wall":
@@ -435,7 +436,8 @@ def surface_report(sf, Xp, name, outdir):
     for mm in range(0, int(v.max() - V0) + 1, 500):
         Y0 = Ht - pad - mm*sc; dr.line([(pad - 14, Y0), (pad - 8, Y0)], fill=(200, 0, 0)); dr.text((4, Y0 - 6), str(int(mm + V0)), fill=(200, 0, 0), font=fnt)
     fn = f"surface_{name.replace(' ', '_')}.png"; im.save(os.path.join(outdir, fn))
-    return st, val, fn
+    vf = np.full(len(okm), np.nan); vf[okm] = val; st["missing"] = int((~okm).sum())
+    return st, vf, fn
 
 
 # ================= 3D =================
@@ -668,24 +670,25 @@ def build(pdir, log=print):
         # --- неровности ---
         for sf in st.get("surfaces", []):
             Ps = np.array(sf["points"], float)
-            if len(Ps) < 6: continue
+            if np.isfinite(Ps[:, 2]).sum() < 6: continue
             Xs = fx(to_xyz(Ps[:, :3], st.get("cal", {})))
             nm = f"{rname} {sf['wall']} {'стена' if sf['kind'] == 'wall' else 'пол'}"
             stt, val, png = surface_report(sf, Xs, nm, pdir)
             out["surfaces"].append(dict(name=nm, kind=sf["kind"], png=png, **stt))
             ns, nt = sf["ns"], sf["nt"]
             if len(Xs) == ns*nt:
-                G = Xs.reshape(nt, ns, 3).copy(); V = val.reshape(nt, ns); vmax = max(1.0, val.max())
+                G = Xs.reshape(nt, ns, 3).copy(); V = val.reshape(nt, ns); vmax = max(1.0, np.nanmax(val))
                 d = unit(np.array(sf["b"]) - np.array(sf["a"])); inn = np.r_[-d[1], d[0], 0] if sf["kind"] == "wall" else np.r_[0, 0, 1]
                 G += inn*3
                 for r_ in range(nt - 1):
                     for c_ in range(ns - 1):
+                        if not np.isfinite(V[r_:r_+2, c_:c_+2]).all(): continue
                         q = min(1, V[r_:r_+2, c_:c_+2].mean()/vmax); col = (int(255 - 200*q), int(255 - 150*q), int(255 - 40*q))
                         a_, b_, c2, d_ = G[r_, c_], G[r_, c_+1], G[r_+1, c_+1], G[r_+1, c_]
                         nrm = np.cross(b_ - a_, d_ - a_)
                         if nrm @ inn > 0: M.quad(a_, b_, c2, d_, col, nm)
                         else: M.quad(a_, d_, c2, b_, col, nm)
-            mid = Xs[:, :2].mean(0)
+            mid = np.nanmean(Xs[:, :2], 0)
             txt(f"{nm}: " + ", ".join(f"{k}={v:.1f}" for k, v in stt.items() if isinstance(v, float)), mid, 50, "SURFACES")
         Qk = st.get("quick") or []
         if Qk:
