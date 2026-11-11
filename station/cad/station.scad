@@ -111,11 +111,12 @@ module housing() {
         for (y = [-14:7:14]) translate([MOT_X + MOT/2 + 2, y, 8]) cube([10, 3, H_BOX - 16]); // вентиляция мотора
     }
     intersection() {
-        for (p = boss_pts()) translate([p[0], p[1], 0]) difference() { cylinder(d = 8, h = 10); translate([0, 0, -1]) cylinder(d = 2.8, h = 9); }
+        for (p = boss_pts()) translate([p[0], p[1], 0]) difference() { cylinder(d = 7, h = 10);   // Ø7: у торцов банок зазор под лепестки и провода
+            translate([0, 0, -1]) cylinder(d = 2.8, h = 9); }
         linear_extrude(H_BOX) box2d();
     }
 }
-function boss_pts() = [[PACK_X0 + 4, PACK_Y - 0.5], [PACK_X0 + 4, -PACK_Y + 0.5], [PACK_X1 - 4, PACK_Y + WALL + 3 - 6], [PACK_X1 - 4, -PACK_Y - WALL - 3 + 6],
+function boss_pts() = [[PACK_X0 + 4, PACK_Y - 0.5], [PACK_X0 + 4, -PACK_Y + 0.5], [PACK_X1 + 4, PACK_Y + WALL + 3 - 6], [PACK_X1 + 4, -PACK_Y - WALL - 3 + 6],   // 3-я/4-я — за торцом банок (были на 1,4 мм в банке)
                        [0, R_BOX - 6], [28, -R_BOX + 9], [MOT_X - 6, MOT/2 + 7], [MOT_X - 6, -MOT/2 - 7]];
 
 // ================= ПАЛУБА (вращается): банки и мотор Hz сверху, под ней — закрытая камера ремня =================
