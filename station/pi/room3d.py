@@ -313,7 +313,13 @@ def face_of(f, segs):
 def setup_points(st):
     P = np.array(st["points"], float)
     if P.shape[1] == 3: P = np.c_[P, np.where(np.abs(P[:, 1]) < 30, 0, 1)]
-    return P, to_xyz(P[:, :3], st.get("cal", {}))
+    X = to_xyz(P[:, :3], st.get("cal", {}))
+    C = [v[:2] for k, v in st.get("refs_xyz", {}).items() if k.startswith("C")]
+    if C:                                                     # цилиндры-марки — не часть помещения
+        keep = np.ones(len(X), bool)
+        for c in C: keep &= np.hypot(X[:, 0] - c[0], X[:, 1] - c[1]) > 80
+        P, X = P[keep], X[keep]
+    return P, X
 
 
 def floor_ceiling(st, P, X):
@@ -377,6 +383,7 @@ def register(setups):
         R = {}
         for k, v in st.get("refs", {}).items():
             R[k] = to_xyz(np.array([v[:3]], float), st.get("cal", {}))[0]
+        for k, v in st.get("refs_xyz", {}).items(): R[k] = np.array(v, float)      # цилиндры-марки (центр + верх крышки)
         refs.append(R)
     T = [None]*len(setups); T[0] = (0.0, np.zeros(3)); res = [dict(n=0, rms=0.0, max=0.0)] + [None]*(len(setups) - 1)
     known = {k: v for k, v in refs[0].items()}
@@ -713,8 +720,10 @@ def build(pdir, log=print):
         if T[si] is None:
             out["setups"].append(dict(name=st.get("name", f"S{si+1}"), reg=None)); continue
         f, fx, *_ = to_proj(si)
-        for k, v in st.get("refs", {}).items():
-            p = fx(to_xyz(np.array([v[:3]], float), st.get("cal", {})))[0]
+        allr = {k: to_xyz(np.array([v[:3]], float), st.get("cal", {}))[0] for k, v in st.get("refs", {}).items()}
+        allr.update({k: np.array(v, float) for k, v in st.get("refs_xyz", {}).items()})
+        for k, v in allr.items():
+            p = fx(v[None])[0]
             out["refs"].append(dict(id=k, setup=st.get("name"), x=float(p[0]), y=float(p[1]), z=float(p[2])))
             msp.add_circle(tuple(map(float, p[:2])), 40, dxfattribs={"layer": "REFS"}); txt(f"Т{k} Z{p[2]:.0f}", p[:2] + [0, 80], 50, "REFS")
     for (a, b, c), grp in zip(M.T, M.G):

@@ -388,5 +388,10 @@ else if (part == "pulley_metal") { gt2_pulley_metal(); }
 else if (part == "fit_rings") for (i = [0:3]) translate([i*40, 0, 0]) difference() {   // подбор натяга трубы: Ø-0,15 / -0,05 / +0,05 / +0,15
     cylinder(d = 38, h = 6); translate([0, 0, -1]) cylinder(d = T_OD - 0.15 + 0.1*i, h = 8, $fn = 360);
     for (k = [0:i]) rotate(90*k) translate([17.5, -1, 4]) cube([3, 2, 3]); }
+else if (part == "target_cyl") difference() {          // цилиндр-марка Ø100 x 250 (печать белым матовым, 3 шт.): гайка 1/4" снизу — на стойку/штатив
+    union() { cylinder(d = 100, h = 250, $fn = 360); }
+    translate([0, 0, 3]) cylinder(d = 96, h = 244, $fn = 180);                        // стенка 2 мм, крышка и дно 3 мм — острая верхняя кромка
+    translate([0, 0, -1]) cylinder(d = 6.8, h = 5); translate([0, 0, -0.01]) hex(11.2, 5.2);   // 1/4"-20 (фотостойка); на полу — просто ставить
+}
 else if (part == "none") {}
 else assembly();

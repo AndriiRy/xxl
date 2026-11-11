@@ -30,8 +30,11 @@ def bump(x, z):                               # неровность стены 
     return 4.0*math.sin(math.pi*x/W)*math.sin(math.pi*z/2700) + 0.002*(z - 1350)
 
 
+TGT_R, TGT_H = 50.0, 250.0                    # печатные цилиндры-марки Ø100 x 250 (на стойке или на полу)
+
+
 class Room:
-    def __init__(self, seed=1):
+    def __init__(self, seed=1, targets=()):
         self.rng = np.random.default_rng(seed); self.set_pose(O, TX, TY, AZ)
         Z0, Z1 = -300.0, 3100.0
         q = []                                                  # (p0, p1, p2, p3, tag)
@@ -53,6 +56,12 @@ class Room:
         vq((0, D), (0, PIL["y1"])); vq((0, PIL["y0"]), (0, 0))
         p = PIL["dep"]
         vq((0, PIL["y1"]), (p, PIL["y1"])); vq((p, PIL["y1"]), (p, PIL["y0"])); vq((p, PIL["y0"]), (0, PIL["y0"]))
+        for tg in targets:                                      # цилиндры-марки: (x, y[, низ над полом]) — боковая поверхность + крышка
+            tx_, ty_ = tg[0], tg[1]; zf = FLOOR[0]*tx_ + FLOOR[1]*ty_ + FLOOR[2] + (tg[2] if len(tg) > 2 else 0); th = np.linspace(0, 2*math.pi, 73)
+            P = [(tx_ + TGT_R*math.cos(t), ty_ + TGT_R*math.sin(t)) for t in th]
+            for a, b in zip(P[:-1], P[1:]):
+                vq(b, a, zf, zf + TGT_H)
+                q.append(([tx_, ty_, zf + TGT_H], [a[0], a[1], zf + TGT_H], [b[0], b[1], zf + TGT_H], [tx_, ty_, zf + TGT_H], 0))
         T = []; tags = []
         for a, b, c, d, tag in q:
             T += [(a, b, c), (a, c, d)]; tags += [tag, tag]

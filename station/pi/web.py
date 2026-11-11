@@ -354,6 +354,42 @@ class App:
     def job_zero(self):
         st_ = self.station(); st_.ard.zero(); self.say("текущее положение = 0")
 
+    # ---------- цилиндры-марки: переход между помещениями ----------
+    def job_targets(self):
+        """Найти цилиндры-марки на этой стоянке, узнать их по расстояниям между ними (с прошлых стоянок), сшить стоянки."""
+        import itertools
+        st_ = self.station(); S = self.proj(); cur = self.cur(S)
+        if not self.calibrated(cur): print("калибровка"); self.job_calib(); S = self.proj(); cur = self.cur(S)
+        self.cfg["cal"].update(cur["cal"]); c = self.cfg.get("targets", {"R": 50.0})
+        ring = [p[:3] for p in cur.get("points", []) if p[3] == 0] if cur.get("mount", self.cfg["mount"]) == "tripod" else []
+        ring = ring if len(ring) > 300 else None                    # профиль скана (V=0) — без лишнего обхода
+        orig = self._wrap_point(st_, 150 if ring else 900)
+        try: T = st_.find_cylinders(ring, c["R"])
+        finally: st_.point = orig
+        if len(T) < 2: raise RuntimeError(f"найдено цилиндров: {len(T)} — нужно ≥2 (лучше 3), видимых и с прошлой стоянки")
+        mine = [np.r_[t["xy"], t["z_top"]] for t in T]
+        best = None                                         # опознание: прошлые стоянки, совпадение попарных расстояний
+        for prev in S["setups"][:-1]:
+            K = prev.get("refs_xyz", {})
+            ids = [k for k in K if k.startswith("C")]
+            if len(ids) < 2: continue
+            for m in range(min(len(ids), len(mine)), 1, -1):
+                for a_ in itertools.permutations(range(len(mine)), m):
+                    for b_ in itertools.combinations(ids, m):
+                        e = max(abs(np.linalg.norm(mine[a_[i]][:2] - mine[a_[j]][:2]) - np.linalg.norm(np.array(K[b_[i]][:2]) - np.array(K[b_[j]][:2])))
+                                for i in range(m) for j in range(i + 1, m))
+                        if e < 15 and (best is None or (m, -e) > (best[0], -best[1])): best = (m, e, a_, b_)
+                if best: break
+        used = set(); cur["refs_xyz"] = {}
+        if best:
+            for i, k in zip(best[2], best[3]): cur["refs_xyz"][k] = mine[i].tolist(); used.add(i)
+            print(f"  опознано {best[0]} цилиндра(ов) прошлой стоянки (расхождение расстояний {best[1]:.1f} мм)")
+        nxt = 1 + max([int(k[1:]) for s in S["setups"] for k in s.get("refs_xyz", {}) if k[1:].isdigit()] + [0])
+        for i, p in enumerate(mine):
+            if i not in used: cur["refs_xyz"][f"C{nxt}"] = p.tolist(); nxt += 1
+        self.save(S); self.rebuild()
+        print("  цилиндры: " + ", ".join(sorted(cur["refs_xyz"])) + ("" if best or len(S["setups"]) == 1 else "  — НЕ опознаны: поставьте ≥2 цилиндра там же, где на прошлой стоянке"))
+
     # ---------- самокалибровка круга Hz ----------
     def hzcal_poses(self):
         if self.sim: return getattr(self, "_hzcal", [])
@@ -773,7 +809,7 @@ class H(BaseHTTPRequestHandler):
                     "qpoint": (A.job_qpoint, "p"), "floorpt": (A.job_qpoint, "f"), "qclear": (A.job_qclear,), "plumb": (A.job_plumb,),
                     "stake": (A.job_stake, b.get("id", A.sel)), "tie": (A.job_tie, b.get("id"), b.get("xyz")),
                     "resect": (A.job_resect,), "untie": (A.job_untie,), "check": (A.job_check,), "line": (A.job_line, b),
-                    "cadpt": (A.job_cad_point,), "hzpose": (A.job_hzcal_pose,), "hzsolve": (A.job_hzcal_solve,), "hzreset": (A.job_hzcal_reset,), "worktop": (A.job_worktop, b),
+                    "cadpt": (A.job_cad_point,), "targets": (A.job_targets,), "hzpose": (A.job_hzcal_pose,), "hzsolve": (A.job_hzcal_solve,), "hzreset": (A.job_hzcal_reset,), "worktop": (A.job_worktop, b),
                     "compare": (A.job_compare, b.get("file", A.lay.get("file", "")), b.get("layers") or [])}
             if c not in jobs: raise ValueError(f"команда? {c}")
             A.run(c, *jobs[c]); self.send(200, {"ok": 1})

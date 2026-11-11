@@ -83,6 +83,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}td{p
       <button data-b onclick="$('jog').classList.toggle('on')">Наводка</button>
       <button onclick="dl()">Скачать</button>
       <button data-b onclick="dlgWorktop()">Столешница…</button>
+      <button data-b onclick="cmd('targets')">Цилиндры ⊙</button>
     </div>
     <div class="sec" id="jog">
       <div class="row" style="margin-bottom:6px"><span class="mu">Шаг</span><select id="stp"><option>10</option><option selected>1</option><option>0.1</option><option>0.01</option></select><span class="mu">°</span></div>
@@ -212,7 +213,7 @@ async function poll(){
   const su=(S.setups||[]).slice(-1)[0];
   $('setup').innerHTML=su?`Стоянка <b style="color:var(--tx)">${su.name}</b> из ${S.setups.length} · ${su.cal?'выставлена':'<span style="color:var(--wr)">не калибр.</span>'} · марки: ${su.refs.join(', ')||'—'}`:'';
   const st=$('status'); st.className=S.error&&!S.busy?'err':'';
-  const nm={scan:'Скан',photos:'Фото стен',process:'Расчёт',measure:'Замер',move:'Поворот',home:'Поиск нуля',zero:'Нуль',calib:'Калибровка',qpoint:'Точка',floorpt:'Точка пола',qclear:'Сброс',mount:'Установка',plumb:'Отвес',vindex:'Индекс V',level:'Трасса по уровню',surface:'Неровности',ref:'Опорная точка',newsetup:'Стоянка',stake:'Вынос',cadpt:'Замер в чертёж',hzpose:'Круг Hz: положение',hzsolve:'Круг Hz: расчёт',hzreset:'Круг Hz: сброс',worktop:'Столешница',tie:'Привязка',resect:'Свободная станция',untie:'Сброс привязок',check:'Проверка стоянки',line:'Лазерная линия',compare:'Проект — факт'};
+  const nm={scan:'Скан',photos:'Фото стен',process:'Расчёт',measure:'Замер',move:'Поворот',home:'Поиск нуля',zero:'Нуль',calib:'Калибровка',qpoint:'Точка',floorpt:'Точка пола',qclear:'Сброс',mount:'Установка',plumb:'Отвес',vindex:'Индекс V',level:'Трасса по уровню',surface:'Неровности',ref:'Опорная точка',newsetup:'Стоянка',stake:'Вынос',cadpt:'Замер в чертёж',targets:'Цилиндры-марки',hzpose:'Круг Hz: положение',hzsolve:'Круг Hz: расчёт',hzreset:'Круг Hz: сброс',worktop:'Столешница',tie:'Привязка',resect:'Свободная станция',untie:'Сброс привязок',check:'Проверка стоянки',line:'Лазерная линия',compare:'Проект — факт'};
   st.textContent=S.busy?(nm[S.busy]||S.busy)+'… '+Math.round(S.progress*100)+'%':(S.error||'Готово')+(S.sim?' · симуляция':'');
   $('bar').firstChild.style.width=(S.busy?S.progress*100:0)+'%';
   $('pos').textContent=S.pos?`Hz ${S.pos[0].toFixed(2)}° V ${S.pos[1].toFixed(2)}°`:'';

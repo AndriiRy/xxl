@@ -157,7 +157,7 @@ class Sim:
     WIND = 1.5                                                 # ход барабана Hz: ±1,5 оборота от середины (шнур закреплён на концах)
     def __init__(self, cfg):
         import sim_room
-        self.cfg, self.room, self.pos = cfg, sim_room.Room(), (0, 0)
+        self.cfg, self.room, self.pos = cfg, sim_room.Room(targets=cfg.get("sim_targets", ())), (0, 0)
         self.err = list(cfg.get("sim_scale_err", [0.0, 0.0])); self.spr0 = (cfg["steps_per_rev_hz"], cfg["steps_per_rev_v"])
         self.v_off = 7.3                                       # голова при включении наклонена на неизвестный угол
         self.h_off = 0.0                                       # истинный Hz при счётчике 0
@@ -521,6 +521,58 @@ class Station:
             if k % 40 == 0: print(f"  уровень {z:+.0f}: {k}/{N}", flush=True)
         print(f"  трасса: {good}/{N} точек на уровне")
         return pts
+
+    # ---------- цилиндры-марки (переход между помещениями без наводки) ----------
+    def find_cylinders(self, ring=None, R=50.0, step=0.5):
+        """Цилиндры-марки, перекрывающие высоту луча: круговой профиль (готовый из скана или новый при V=0) ->
+        «бугорки» ближе фона шириной ~2R -> дорисовка шагом 0,05° -> центр окружности известного радиуса ->
+        верхняя кромка подъёмом луча (бисекция по V). -> [dict(xy, z_top, n, rms)]"""
+        v0 = self.cfg["cal"].get("v0", 0)
+        if ring is None:
+            ring = [self.point(k*step, v0) for k in range(int(round(360/step)))]
+        P = np.array([p for p in ring if p[2] > 0]); P = P[np.argsort(P[:, 0])]
+        X = self.xyzs(P); r = np.hypot(X[:, 0], X[:, 1]); n = len(P); found = []
+        bg = np.array([np.median(np.r_[r[max(0, i - 20):max(0, i - 3)], r[i + 4:i + 21]]) for i in range(n)])
+        fg = r < bg - 60; i = 0
+        while i < n:
+            if not fg[i]: i += 1; continue
+            j = i
+            while j + 1 < n and fg[j + 1]: j += 1
+            dist = float(np.median(r[i:j + 1])); span = (P[j, 0] - P[i, 0]) % 360 + step
+            exp = math.degrees(2*math.asin(min(1, R/max(dist, R + 1))))
+            if 0.4*exp < span < 1.8*exp and dist < 9000: found.append((P[i, 0] - 1.0, P[j, 0] + 1.0, float(np.median(P[i:j + 1, 1])), dist))
+            i = j + 1
+        out = []
+        for h0, h1, v, dist in found:
+            Q = np.array([q for q in (self.point(hz % 360, v) for hz in np.arange(h0, h1, 0.05)) if q[2] > 0])
+            Y = self.xyzs(Q); rr = np.hypot(Y[:, 0], Y[:, 1]); Y = Y[rr < np.median(rr) + 30][:, :2]
+            if len(Y) < 8: continue
+            c = Y.mean(0); c = c + c/np.linalg.norm(c)*R*0.8
+            for _ in range(20):                                                         # окружность известного радиуса
+                dd = Y - c; L = np.linalg.norm(dd, axis=1); c = c - np.linalg.lstsq(-dd/L[:, None], L - R, rcond=None)[0]
+            rms = float(np.sqrt(((np.linalg.norm(Y - c, axis=1) - R)**2).mean()))
+            if rms > 3: continue
+            # верхняя кромка: луч в ближнюю точку цилиндра, вверх до схода, бисекция по V
+            hz_c = self.aim([c[0], c[1], 0])[0]; near = np.linalg.norm(c) - R
+            on = lambda p: p[2] > 0 and abs(np.linalg.norm(self.xyz(p)[:2]) - near) < 25
+            a, b, vv = v, None, v
+            while vv < v + 30:
+                vv += 1.0; p = self.point(hz_c, vv)
+                if on(p): a = vv
+                else: b = vv; break
+            if b is None: continue
+            for _ in range(12):
+                m = (a + b)/2; p = self.point(hz_c, m)
+                if on(p): a, pz = m, p
+                else: b = m
+            ztop = float(self.xyz(self.point(hz_c, a))[2])
+            out.append(dict(xy=c.tolist(), z_top=ztop, n=len(Y), rms=rms))
+            print(f"  цилиндр: X{c[0]:.0f} Y{c[1]:.0f}, верх Z{ztop:.1f}, {len(Y)} точек, СКО {rms:.2f} мм")
+        self.ard.move(0, 0); return out
+
+    def xyzs(self, P):
+        from scan2dxf import to_xyz
+        return to_xyz(np.asarray(P, float)[:, :3], self.cfg["cal"])
 
     def measure_grid(self, P):
         """Сетка точек (кадр станции) -> замеры. Змейкой, чтобы меньше ездить."""
