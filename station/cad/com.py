@@ -11,8 +11,8 @@ def stl(fn):
     return abs(v.sum()), (v[:,None]*(a+b+c)/4).sum(0)/v.sum()
 # из station.scad (echo): Z_BASE 26, Z_DK 55, Z_HS 58, Z_TOP 92, AXLE_Z 64, POD_H 104
 Z_BASE, Z_DK, Z_HS, Z_TOP, AXLE_Z, POD_H = 26, 55, 58, 92, 64, 104
-N_CELL, CELL_M = 3, 0.070; PACK_X = -25 - (N_CELL*21.6 + N_CELL - 1)/2; MOT_X = 70.3; mz = AXLE_Z - 38.8
-FEET = [np.array([92*math.cos(math.radians(a)), 92*math.sin(math.radians(a))]) for a in (180, 60, -60)]
+N_CELL, CELL_M = 3, 0.070; PACK_X = -25 - (N_CELL*21.6 + N_CELL - 1)/2; MOT_X = 73.3; mz = AXLE_Z - 38.8
+FEET = [np.array([96*math.cos(math.radians(a)), 96*math.sin(math.radians(a))]) for a in (180, 60, -60)]
 K = 1.27e-3*0.62/1000
 it = []
 for fn, off, rot in (("base.stl", Z_BASE, 0), ("spacer.stl", Z_BASE + 24, 0), ("deck.stl", Z_DK, 1), ("housing.stl", Z_HS, 1),
@@ -43,4 +43,4 @@ def margin(F, p):
     return out
 m0 = min(margin(FEET, c[:2]) for c in C)
 print(f"масса {M:.2f} кг, ЦМ z{Cm[2]:.0f} мм, ход ЦМ при вращении ±{np.linalg.norm(C[:, :2], axis=1).max():.1f} мм")
-print(f"ножки R92 (120°): запас {m0:.0f} мм, опрокидывание при {math.degrees(math.atan(m0/Cm[2])):.0f}°")
+print(f"ножки R96 (120°): запас {m0:.0f} мм, опрокидывание при {math.degrees(math.atan(m0/Cm[2])):.0f}°")

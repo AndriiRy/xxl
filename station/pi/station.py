@@ -29,7 +29,9 @@ CFG_DEFAULT = {
         "pointer_hex": "", "pointer_off_hex": "",          # модуль: команды «лазер вкл/выкл» (указка для выноса); ручной — 1 нажатие
     },
     "hz_drive": "belt",               # belt: ремень GT2 188/16, вращение без ограничения | cord: шнур, ход ±1,5 оборота (v5)
-    "steps_per_rev_hz": 75200,        # 200 шагов * 32 мкш (TMC2209: MS1=1, MS2=0) * 188/16; шнур v5: 59323
+    "steps_per_rev_hz": 76800,        # 200 шагов * 32 мкш (TMC2209: MS1=1, MS2=0) * 192/16; шнур v5: 59323
+    "hz_ratio": 12,                   # передача Hz (целое: фаза ротора — функция угла Hz)
+    "hz_err": {},                     # самокалибровка круга Hz: гармоники ошибки угла (град) — {"n": [...], "a": [...], "b": [...]}
     "steps_per_rev_v": 34708,         # 3200 * (70,5/6,5)
     "v_min_deg": -45.0,               # ниже луч упирается в барабан/корпус; исключение — отвес (-90° через полую ось)
     "settle_s": 0.3,
@@ -161,20 +163,27 @@ class Sim:
         self.h_off = 0.0                                       # истинный Hz при счётчике 0
     def _sh(self): return self.spr0[0]*(1 + self.err[0])
     def _sv(self): return self.spr0[1]*(1 + self.err[1])
+    def _lin(self): return self.pos[0]/self._sh()*360 + self.h_off          # поворот корпуса по счётчику (без ошибок передачи)
+    def _err(self, lin):
+        """Ошибка передачи (истина для теста): эксцентриситет/эллипс шкива 192T и биение шкива мотора (12 за оборот)."""
+        e = self.cfg.get("sim_hz_ecc") or {}; t = math.radians(lin)
+        return sum(A*math.sin(n*t + math.radians(ph)) for n, (A, ph) in ((int(k), v) for k, v in e.items()))
     def move(self, h, v):
         w = (h/self._sh()*360 + self.h_off - self.MARK)/360
         if self.cfg.get("hz_drive", "belt") == "cord" and abs(w) > self.WIND: raise RuntimeError(f"СИМ: шнур Hz за пределом хода барабана ({w:+.2f} оборота)")
         self.pos = (int(round(h)), int(round(v))); return self.pos
     def jog(self, ax, n): return self.move(self.pos[0] + (n if ax == "H" else 0), self.pos[1] + (n if ax == "V" else 0))
-    def zero(self): h, v = self.deg(); self.h_off = h; self.v_off += v; self.pos = (0, 0)
+    def zero(self): self.h_off = self._lin(); self.v_off += self.deg()[1]; self.pos = (0, 0)
     def home(self):
-        h = self.deg()[0]; d = (self.MARK - h) % 360
+        l0 = self._lin(); a0 = l0 + self._err(l0); d = (self.MARK - a0) % 360
         if d < 0.01: d += 360                                  # стоим на метке — прошивка сначала сходит с неё
-        n = int(round(d/360*self._sh())); self.h_off = h + n/self._sh()*360; self.pos = (0, self.pos[1]); return n
+        l1 = l0 + d
+        for _ in range(6): l1 += ((self.MARK - (l1 + self._err(l1)) + 180) % 360) - 180   # метка — по истинному углу
+        n = int(round((l1 - l0)/360*self._sh())); self.h_off = l0 + n/self._sh()*360; self.pos = (0, self.pos[1]); return n
     def setpos(self, h, v):
-        ht, vt = self.deg()[0], self.deg()[1] + self.v_off; self.pos = (int(round(h)), int(round(v)))
-        self.h_off = ht - self.pos[0]/self._sh()*360; self.v_off = vt - self.deg()[1]; return self.pos
-    def deg(self): return self.pos[0]/self._sh()*360 + self.h_off, self.pos[1]/self._sv()*360
+        lt, vt = self._lin(), self.deg()[1] + self.v_off; self.pos = (int(round(h)), int(round(v)))
+        self.h_off = lt - self.pos[0]/self._sh()*360; self.v_off = vt - self.deg()[1]; return self.pos
+    def deg(self): l = self._lin(); return l + self._err(l), self.pos[1]/self._sv()*360
     def raw(self): return f"D={self.measure()/1000:.4f}m\r\n".encode()
     def measure(self): h, v = self.deg(); return self.room.measure(h, v + self.v_off)
     def imu(self): h, v = self.deg(); return self.room.imu(h, v + self.v_off)
@@ -221,14 +230,22 @@ class Station:
         import photos
         c = dict(photos.CAM_DEFAULT); c.update(self.cfg["camera"]); return c
 
+    # ---------- круг Hz: линейный счёт + поправка самокалибровки ----------
+    def hz_corr(self, lin):
+        """Ошибка круга Hz (град) по самокалибровке: гармоники угла (эксцентриситет шкива — 1-я, биение шкива мотора — 12-я)."""
+        p = self.cfg.get("hz_err") or {}
+        if not p or getattr(self, "_raw", False): return 0.0
+        t = math.radians(lin); return float(sum(a*math.sin(n*t) + b*math.cos(n*t) for n, a, b in zip(p["n"], p["a"], p["b"])))
+    def h2deg(self, steps): lin = steps/self.cfg["steps_per_rev_hz"]*360; return lin + self.hz_corr(lin)
+
     def move_deg(self, hz, v):
         h, s = self.ard.move(*self.deg2steps(hz, v))
         if not self.sim: time.sleep(self.cfg["settle_s"])
-        return h / self.cfg["steps_per_rev_hz"] * 360, s / self.cfg["steps_per_rev_v"] * 360
+        return self.h2deg(h), s / self.cfg["steps_per_rev_v"] * 360
 
     def pos_deg(self):
         h, s = self.ard.pos
-        return h / self.cfg["steps_per_rev_hz"] * 360, s / self.cfg["steps_per_rev_v"] * 360
+        return self.h2deg(h), s / self.cfg["steps_per_rev_v"] * 360
 
     def capture(self, path, cam):
         import photos
@@ -240,7 +257,9 @@ class Station:
             photos.capture(path, cam)
 
     def deg2steps(self, hz, v):
-        return hz / 360 * self.cfg["steps_per_rev_hz"], v / 360 * self.cfg["steps_per_rev_v"]
+        lin = hz
+        for _ in range(4): lin = hz - self.hz_corr(lin)                   # обратная поправка круга
+        return lin / 360 * self.cfg["steps_per_rev_hz"], v / 360 * self.cfg["steps_per_rev_v"]
 
     def point(self, hz, v, plumb=False):
         vi = v - self.cfg["cal"].get("v0", 0)
@@ -251,7 +270,7 @@ class Station:
         d = statistics.mean(self.las.measure() for _ in range(self.cfg["avg"]))
         self._np += 1; w = self.cfg["tilt_watch"]
         if w.get("every") and "imu_b" in self.cfg["cal"] and self._np % w["every"] == 0: self.tilt_guard()
-        return [h / self.cfg["steps_per_rev_hz"] * 360, s / self.cfg["steps_per_rev_v"] * 360, float(d)]
+        return [self.h2deg(h), s / self.cfg["steps_per_rev_v"] * 360, float(d)]
 
     # ---------- углы <-> направление (кадр станции по уровню) ----------
     def R_tilt(self):
@@ -331,6 +350,18 @@ class Station:
         else:
             t = -round(spr*160/360); self.ard.move(t, self.ard.pos[1]); slip = t + self.ard.home()   # метка середины хода: счётчик = 0
         d = slip/spr*360; print(f"  контроль нуля Hz: расхождение {slip:+d} шагов ({d:+.4f}°)"); return d
+
+    def hz_circle_profile(self, step=0.5):
+        """Самокалибровка круга: профиль по горизонту в сырых (линейных) углах — без поправки круга."""
+        self._raw = True
+        try:
+            pts = []; n = int(round(360/step)); v = self.cfg["cal"].get("v0", 0)
+            for k in range(n):
+                p = self.point(k*step, v)
+                if p[2] > 0: pts.append(p)
+                if k % 120 == 0: print(f"  круг Hz: {k}/{n}", flush=True)
+            self.ard.move(0, 0); return pts
+        finally: self._raw = False
 
     # ---------- компенсатор: контроль наклона ----------
     def _imu_pred(self):

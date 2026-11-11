@@ -95,7 +95,7 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}td{p
         <button data-b onclick="mvAbs()">Hz/V…</button><button data-b onclick="if(confirm('Полная калибровка с индексом V (8 пар замеров через зенит по потолку)?'))cmd('vindex')">Индекс V</button>
         <button data-b class="pr" onclick="cmd('qpoint')">Точка +</button><button data-b onclick="cmd('floorpt')">Пол ⊥</button>
         <button data-b onclick="if(confirm('Очистить быстрые точки?'))cmd('qclear')">Сброс т.</button><button data-b onclick="cmd('calib')">Нивелир</button>
-        <button data-b onclick="cmd('plumb')">Отвес ⊥</button><button data-b onclick="if(confirm('Поставлена новая кассета шнура? Пробег обнулится, исходный масштаб — при следующей «Калибровке».'))post({cmd:'cord_new'}).then(poll)">Новый шнур</button>
+        <button data-b onclick="cmd('plumb')">Отвес ⊥</button><button data-b onclick="if(confirm('Круг Hz: снять положение? Станция на месте, вокруг стены. После — повернуть станцию целиком на ~90°.'))cmd('hzpose')">Круг Hz +</button><button data-b onclick="cmd('hzsolve')">Круг Hz =</button><button data-b onclick="if(confirm('Поставлена новая кассета шнура? Пробег обнулится, исходный масштаб — при следующей «Калибровке».'))post({cmd:'cord_new'}).then(poll)">Новый шнур</button>
       </div>
       <div id="meas"></div><div id="marks" class="mu"></div><div id="quick" style="margin-top:6px"></div>
     </div>
@@ -212,7 +212,7 @@ async function poll(){
   const su=(S.setups||[]).slice(-1)[0];
   $('setup').innerHTML=su?`Стоянка <b style="color:var(--tx)">${su.name}</b> из ${S.setups.length} · ${su.cal?'выставлена':'<span style="color:var(--wr)">не калибр.</span>'} · марки: ${su.refs.join(', ')||'—'}`:'';
   const st=$('status'); st.className=S.error&&!S.busy?'err':'';
-  const nm={scan:'Скан',photos:'Фото стен',process:'Расчёт',measure:'Замер',move:'Поворот',home:'Поиск нуля',zero:'Нуль',calib:'Калибровка',qpoint:'Точка',floorpt:'Точка пола',qclear:'Сброс',mount:'Установка',plumb:'Отвес',vindex:'Индекс V',level:'Трасса по уровню',surface:'Неровности',ref:'Опорная точка',newsetup:'Стоянка',stake:'Вынос',cadpt:'Замер в чертёж',worktop:'Столешница',tie:'Привязка',resect:'Свободная станция',untie:'Сброс привязок',check:'Проверка стоянки',line:'Лазерная линия',compare:'Проект — факт'};
+  const nm={scan:'Скан',photos:'Фото стен',process:'Расчёт',measure:'Замер',move:'Поворот',home:'Поиск нуля',zero:'Нуль',calib:'Калибровка',qpoint:'Точка',floorpt:'Точка пола',qclear:'Сброс',mount:'Установка',plumb:'Отвес',vindex:'Индекс V',level:'Трасса по уровню',surface:'Неровности',ref:'Опорная точка',newsetup:'Стоянка',stake:'Вынос',cadpt:'Замер в чертёж',hzpose:'Круг Hz: положение',hzsolve:'Круг Hz: расчёт',hzreset:'Круг Hz: сброс',worktop:'Столешница',tie:'Привязка',resect:'Свободная станция',untie:'Сброс привязок',check:'Проверка стоянки',line:'Лазерная линия',compare:'Проект — факт'};
   st.textContent=S.busy?(nm[S.busy]||S.busy)+'… '+Math.round(S.progress*100)+'%':(S.error||'Готово')+(S.sim?' · симуляция':'');
   $('bar').firstChild.style.width=(S.busy?S.progress*100:0)+'%';
   $('pos').textContent=S.pos?`Hz ${S.pos[0].toFixed(2)}° V ${S.pos[1].toFixed(2)}°`:'';
@@ -220,6 +220,7 @@ async function poll(){
   const L=S.last; if(L&&L.plumb!=null)$('meas').innerHTML=`Отвес: ось станции на <b>${L.plumb.toFixed(1)}</b> мм над опорой`; else if(L&&L.d)$('meas').innerHTML=`D ${L.d.toFixed(1)} · X ${L.xyz[0].toFixed(0)} Y ${L.xyz[1].toFixed(0)} Z ${L.xyz[2].toFixed(1)}`+(L.dh!=null?` · <span style="color:var(--wr)">ΔH ${L.dh>=0?'+':''}${L.dh.toFixed(1)}</span>`:'');
   const mn=$('mnt');if(document.activeElement!==mn)mn.value=S.mount||'tripod';
   const K=S.cord;if(K){const mx=Math.max(K.hz,K.v),bad=mx>=100||(K.drift!=null&&Math.abs(K.drift)>3000);$('setup').innerHTML+=` · <span style="color:${bad?'var(--er)':mx>80?'var(--wr)':'var(--mu)'}">ремень Hz ${K.hz.toFixed(0)}% · шнур V ${K.v.toFixed(0)}%${K.drift!=null?` · ${K.drift>=0?'+':''}${K.drift.toFixed(0)} ppm`:''}</span>`}
+  const Z=S.hzcal;if(Z)$('setup').innerHTML+=` · <span class="mu">круг Hz: ${Z.on?'поправка вкл.':'нет поправки'}${Z.poses?` · положений ${Z.poses}`:''}</span>`;
   const B=S.batt;$('batt').innerHTML=B?`<span style="color:${B[1]<15?'var(--er)':B[1]<35?'var(--wr)':'var(--ok)'}">▮ ${B[1]}% · ${B[0].toFixed(1)} В</span>`:'';
   quickList(S.quick||[]);layPanel();cadPanel();$('alert').classList.toggle('on',!!S.alert);$('altx').textContent=S.alert||'';
   const mk=S.marks||{};$('marks').textContent=(mk.hz0!=null||mk.hz1!=null)?`сектор: ${f0(mk.hz0,2)}° → ${f0(mk.hz1,2)}°`:'';

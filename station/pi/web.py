@@ -17,8 +17,10 @@ import room3d
 import layout as LY
 import cadm
 import worktop as WT
+import hzcal
 S_cfg_path = lambda: S.CFG_PATH
-POS_PATH = os.path.join(HERE, "hz_pos.json")              # последний счётчик Hz (после перезапуска — тот же виток шнура)
+POS_PATH = os.path.join(HERE, "hz_pos.json")
+HZCAL_PATH = os.path.join(HERE, "hzcal.json")              # самокалибровка круга Hz: профили в разных положениях станции              # последний счётчик Hz (после перезапуска — тот же виток шнура)
 
 
 class Abort(Exception): pass
@@ -352,6 +354,39 @@ class App:
     def job_zero(self):
         st_ = self.station(); st_.ard.zero(); self.say("текущее положение = 0")
 
+    # ---------- самокалибровка круга Hz ----------
+    def hzcal_poses(self):
+        if self.sim: return getattr(self, "_hzcal", [])
+        return json.load(open(HZCAL_PATH)) if os.path.exists(HZCAL_PATH) else []
+
+    def hzcal_store(self, P):
+        if self.sim: self._hzcal = P
+        else: json.dump(P, open(HZCAL_PATH, "w"))
+
+    def job_hzcal_pose(self):
+        """Одно положение: нивелир + профиль по горизонту в сырых углах. Затем повернуть станцию целиком на ~90°."""
+        st_ = self.station(); self.job_calib(save_v0=False)
+        orig = self._wrap_point(st_, 720)
+        try: pts = st_.hz_circle_profile(0.5)
+        finally: st_.point = orig
+        P = self.hzcal_poses(); P.append(dict(pts=pts, cal={k: v for k, v in self.cfg["cal"].items() if k != "imu_b"})); self.hzcal_store(P)
+        print(f"  круг Hz: положение {len(P)} снято. Поверните станцию целиком на ~90° (штатив/пол) и снимите следующее; после 3–4 — «Рассчитать»")
+
+    def job_hzcal_solve(self):
+        P = self.hzcal_poses(); par, rep = hzcal.solve(P)
+        self.cfg["hz_err"] = par
+        print(f"  круг Hz: СКО до стен {rep['rms0']:.2f} -> {rep['rms']:.2f} мм; гармоники " +
+              ", ".join(f"{n}: {a*3600:.0f}\"" for n, a in zip(par["n"], rep["amp"])))
+        if not self.sim:
+            p = S_cfg_path(); c = json.load(open(p)) if os.path.exists(p) else {}
+            c["hz_err"] = par; json.dump(c, open(p, "w"), indent=1); print("  поправка круга Hz сохранена в config.json")
+        self.hzcal_store([])
+
+    def job_hzcal_reset(self):
+        self.hzcal_store([]); self.cfg["hz_err"] = {}; print("  самокалибровка круга Hz сброшена (поправка выключена до нового расчёта)")
+        if not self.sim:
+            p = S_cfg_path(); c = json.load(open(p)) if os.path.exists(p) else {}; c["hz_err"] = {}; json.dump(c, open(p, "w"), indent=1)
+
     # ---------- шнур: пробег и замена ----------
     def cord_save(self, reset=False):
         c = self.cfg["cord"]
@@ -628,7 +663,8 @@ class App:
                 "project": self.project, "projects": self.projects(), "pos": pos, "last": self.last,
                 "sim": self.sim, "setups": setups, "zref": self.zref, "marks": self.marks, "mount": self.cfg["mount"],
                 "quick": quick, "batt": batt, "alert": self.alert, "lay": self.lay_state(),
-                "cad": self.cad_state() if self.project else None, "wt": self.wt, "cord": self.cord_state()}
+                "cad": self.cad_state() if self.project else None, "wt": self.wt, "cord": self.cord_state(),
+                "hzcal": dict(poses=len(self.hzcal_poses()), on=bool(self.cfg.get("hz_err")))}
 
     def lay_state(self):
         r = None
@@ -737,7 +773,7 @@ class H(BaseHTTPRequestHandler):
                     "qpoint": (A.job_qpoint, "p"), "floorpt": (A.job_qpoint, "f"), "qclear": (A.job_qclear,), "plumb": (A.job_plumb,),
                     "stake": (A.job_stake, b.get("id", A.sel)), "tie": (A.job_tie, b.get("id"), b.get("xyz")),
                     "resect": (A.job_resect,), "untie": (A.job_untie,), "check": (A.job_check,), "line": (A.job_line, b),
-                    "cadpt": (A.job_cad_point,), "worktop": (A.job_worktop, b),
+                    "cadpt": (A.job_cad_point,), "hzpose": (A.job_hzcal_pose,), "hzsolve": (A.job_hzcal_solve,), "hzreset": (A.job_hzcal_reset,), "worktop": (A.job_worktop, b),
                     "compare": (A.job_compare, b.get("file", A.lay.get("file", "")), b.get("layers") or [])}
             if c not in jobs: raise ValueError(f"команда? {c}")
             A.run(c, *jobs[c]); self.send(200, {"ok": 1})
