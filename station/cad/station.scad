@@ -116,7 +116,7 @@ module housing() {
         linear_extrude(H_BOX) box2d();
     }
 }
-function boss_pts() = [[PACK_X0 + 4, PACK_Y - 0.5], [PACK_X0 + 4, -PACK_Y + 0.5], [PACK_X1 + 4, PACK_Y + WALL + 3 - 6], [PACK_X1 + 4, -PACK_Y - WALL - 3 + 6],   // 3-я/4-я — за торцом банок (были на 1,4 мм в банке)
+function boss_pts() = [[PACK_X0 + 4, PACK_Y + 0.25], [PACK_X0 + 4, -PACK_Y - 0.25],   // 1-я/2-я — в стенке: до торца банки 1,8 мм [PACK_X1 + 4, PACK_Y + WALL + 3 - 6], [PACK_X1 + 4, -PACK_Y - WALL - 3 + 6],   // 3-я/4-я — за торцом банок (были на 1,4 мм в банке)
                        [0, R_BOX - 6], [28, -R_BOX + 9], [MOT_X - 6, MOT/2 + 7], [MOT_X - 6, -MOT/2 - 7]];
 
 // ================= ПАЛУБА (вращается): банки и мотор Hz сверху, под ней — закрытая камера ремня =================
