@@ -59,6 +59,37 @@
 | Шлейф CSI 15-pin Standard–Standard **300 мм** (для Pi 4; оранжевый Standard–Mini — только для Pi 5) | 15 | Allegro / botland |
 | Модуль дальномера UART ±1 мм, 50 м — замена Bosch (быстрее ×10) | 290 | kamami.pl/580934 |
 
+**Ссылки поиска Allegro** (открыть с телефона; сортировка — «od najtańszych z dostawą»):
+- TMC2209 ×3: https://allegro.pl/listing?string=tmc2209%20bigtreetech
+- NEMA17 плоский ×2: https://allegro.pl/listing?string=silnik%20krokowy%20nema17%2017HS4023
+- Ремень GT2 400 замкнутый ×2: https://allegro.pl/listing?string=pasek%20gt2%20zamkni%C4%99ty%20400mm%206mm
+- Шкив GT2 16T 5 мм: https://allegro.pl/listing?string=ko%C5%82o%20z%C4%99bate%20gt2%2016%20z%C4%99b%C3%B3w%205mm
+- Подшипник 6806-2RS ×2: https://allegro.pl/listing?string=%C5%82o%C5%BCysko%206806%202rs
+- Подшипник 608-2RS ×2: https://allegro.pl/listing?string=%C5%82o%C5%BCysko%20608%202rs
+- INA219: https://allegro.pl/listing?string=ina219
+- BMS 3S 20 А: https://allegro.pl/listing?string=bms%203s%2020a%20balanser
+- Индикатор 3S: https://allegro.pl/listing?string=wska%C5%BAnik%20na%C5%82adowania%203s
+- Понижайка 5 В 5 А: https://allegro.pl/listing?string=przetwornica%20step%20down%205v%205a
+- MP1584 регулируемая: https://allegro.pl/listing?string=mp1584%20regulowana
+- PC817 + резисторы 1 кОм: https://allegro.pl/listing?string=transoptor%20pc817
+- Зарядник 12,6 В 2 А: https://allegro.pl/listing?string=%C5%82adowarka%2012%2C6v%202a%203s%20li-ion
+- Гнездо DC 5,5/2,1: https://allegro.pl/listing?string=gniazdo%20dc%205%2C5%202%2C1%20panelowe
+- KCD1: https://allegro.pl/listing?string=prze%C5%82%C4%85cznik%20ko%C5%82yskowy%20kcd1
+- Держатель предохранителя 5 А: https://allegro.pl/listing?string=oprawka%20bezpiecznika%205x20%20panelowa
+- JST-XH набор: https://allegro.pl/listing?string=z%C5%82%C4%85cza%20jst%20xh%20zestaw
+- Вставки М3: https://allegro.pl/listing?string=wk%C5%82adki%20gwintowane%20m3%20mosi%C4%99%C5%BCne%20druk%203d
+- Винты М3/М4 набор: https://allegro.pl/listing?string=zestaw%20%C5%9Brub%20m3%20m4%20imbus
+- Провод силиконовый 22/26 AWG: https://allegro.pl/listing?string=przew%C3%B3d%20silikonowy%2022awg
+- Vectran/Dyneema 0,5 мм: https://allegro.pl/listing?string=plecionka%20dyneema%200%2C5mm
+- Пружины растяжения набор: https://allegro.pl/listing?string=spr%C4%99%C5%BCyny%20naci%C4%85gowe%20zestaw
+- Пузырёк Ø15: https://allegro.pl/listing?string=libella%20okr%C4%85g%C5%82a%2015mm
+- Ячейки 21700 ×3: https://allegro.pl/listing?string=samsung%2050e%2021700%20blaszki
+- Камера Module 3: https://allegro.pl/listing?string=raspberry%20pi%20camera%20module%203
+- Шлейф CSI 300 мм: https://allegro.pl/listing?string=ta%C5%9Bma%20kamery%20raspberry%20pi%20300mm%2015pin
+- PETG HF: https://allegro.pl/listing?string=bambu%20petg%20hf
+- Фотостойки ×3: https://allegro.pl/listing?string=statyw%20o%C5%9Bwietleniowy%201/4
+- Труба Al 30×2: https://allegro.pl/listing?string=rura%20aluminiowa%2030x2
+
 **Уже есть:** Bosch GLM 40 (3 601 K72 900, 04/2024, Malaysia), Pi 4, microSD, Arduino Nano, MPU6050, TCRT5000, ZK-4KX (лабораторный БП).
 
 **Итого обязательное (без штатива и «по желанию»): ≈940 zł** (Allegro ≈535, Kamami ≈187, Gotronik ≈35, Botland ≈45, прочие ≈140).
