@@ -4,6 +4,9 @@
 set -e
 PSK="${1:-station123}"; DIR="$(cd "$(dirname "$0")" && pwd)"; U="${SUDO_USER:-pi}"
 hostnamectl set-hostname station
+raspi-config nonint do_spi 0 || true                      # SPI0 — инклинометр SCL3300
+raspi-config nonint do_i2c 0 || true                      # I2C — INA219 (и MPU6050, если стоит он)
+apt-get install -y python3-spidev python3-smbus2 python3-serial || pip3 install --break-system-packages spidev smbus2 pyserial
 nmcli con delete STATION 2>/dev/null || true
 nmcli con add type wifi ifname wlan0 con-name STATION ssid STATION autoconnect yes \
   connection.autoconnect-priority -10 802-11-wireless.mode ap 802-11-wireless.band bg \

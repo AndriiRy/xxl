@@ -360,11 +360,11 @@ class App:
         import itertools
         st_ = self.station(); S = self.proj(); cur = self.cur(S)
         if not self.calibrated(cur): print("калибровка"); self.job_calib(); S = self.proj(); cur = self.cur(S)
-        self.cfg["cal"].update(cur["cal"]); c = self.cfg.get("targets", {"R": 50.0})
+        self.cfg["cal"].update(cur["cal"]); c = {"R": 25.0, "fine": 0.025, **self.cfg.get("targets", {})}   # мини-марка Ø50 (target_mini); Ø100 — R 50
         ring = [p[:3] for p in cur.get("points", []) if p[3] == 0] if cur.get("mount", self.cfg["mount"]) == "tripod" else []
-        ring = ring if len(ring) > 300 else None                    # профиль скана (V=0) — без лишнего обхода
+        ring = ring if len(ring) > 300 and c["R"] >= 40 else None   # большие марки: профиль скана; мини — горизонтальный круг
         orig = self._wrap_point(st_, 150 if ring else 900)
-        try: T = st_.find_cylinders(ring, c["R"])
+        try: T = st_.find_cylinders(ring, c["R"], fine=c["fine"])
         finally: st_.point = orig
         if len(T) < 2: raise RuntimeError(f"найдено цилиндров: {len(T)} — нужно ≥2 (лучше 3), видимых и с прошлой стоянки")
         mine = [np.r_[t["xy"], t["z_top"]] for t in T]
@@ -546,7 +546,7 @@ class App:
             if not self.sim: time.sleep(2.0)                                      # видно, где лазер относительно марки
             D = float(np.median([st_.las.measure() for _ in range(3)])); rows.append(dict(name=nm, dD=D - raw[2]))
             print(f"  {nm}: ΔD {D - raw[2]:+.1f} мм — лазер в центре марки?")
-        bad = (dv is not None and dv > self.cfg["tilt_watch"]["tol_deg"]) or any(abs(r["dD"]) > tol for r in rows)
+        bad = (dv is not None and dv > st_.tilt_tol()) or any(abs(r["dD"]) > tol for r in rows)
         self.chk = dict(tilt=dv, rows=rows, ok=not bad, t=time.strftime("%H:%M"))
         print(f"  наклон: {'—' if dv is None else f'{dv:.3f}°'}; " + ("СТАНЦИЯ СДВИНУТА — «Калибровка» и «Свободная станция»" if bad else "стоянка в порядке"))
         if bad: self.alert = "стоянка сдвинута — «Калибровка» и «Свободная станция»"

@@ -393,5 +393,10 @@ else if (part == "target_cyl") difference() {          // цилиндр-мар�
     translate([0, 0, 3]) cylinder(d = 96, h = 244, $fn = 180);                        // стенка 2 мм, крышка и дно 3 мм — острая верхняя кромка
     translate([0, 0, -1]) cylinder(d = 6.8, h = 5); translate([0, 0, -0.01]) hex(11.2, 5.2);   // 1/4"-20 (фотостойка); на полу — просто ставить
 }
+else if (part == "target_mini") difference() {         // мини-марка Ø50 x 70 (3 шт. в кейс): гайка 1/4" снизу + лапка под струбцину/скотч
+    union() { cylinder(d = 50, h = 70, $fn = 360); translate([-3, -25 - 30, 0]) cube([6, 30, 30]); }
+    translate([0, 0, 3]) cylinder(d = 46, h = 64, $fn = 180);                          // стенка 2, крышка 3 мм — острая верхняя кромка
+    translate([0, 0, -1]) cylinder(d = 6.8, h = 5); translate([0, 0, -0.01]) hex(11.2, 5.2);
+}
 else if (part == "none") {}
 else assembly();

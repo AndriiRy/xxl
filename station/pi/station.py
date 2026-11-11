@@ -48,13 +48,15 @@ CFG_DEFAULT = {
     "battery": {"ina219": None, "cells": 3},   # INA219 (адрес 64) в правой башне — напряжение 3S (9,0–12,6 В)
     "cal": {"d0": 0, "hz0": 0, "v0": 0, "tilt_x": 0, "tilt_y": 0, "e": 0},
     "camera": {},                      # поля поверх photos.CAM_DEFAULT
-    "imu": {"bus": 1, "addr": 104, "sign": [1, 1, 1], "settle_s": 1.0},   # MPU6050; sign — знаки осей
+    # датчик наклона в голове: scl3300 (Murata, SPI0 CE0, режим 4: шум ~0,001°) | mpu6050 (I2C 0x68)
+    # axes/sign: какая ось датчика идёт вдоль луча (X), вдоль оси V (Y) и вверх (Z) — проверить командой `station.py imu`
+    "imu": {"type": "scl3300", "spi_bus": 0, "spi_dev": 0, "bus": 1, "addr": 104, "axes": [0, 1, 2], "sign": [1, 1, 1], "settle_s": 0.5, "n": 200},
     "edge_iter": 8,                    # бисекций на кромку (0,5° / 2^8 = 0,002°)
     "probe_step_deg": 4.0,             # грубый шаг поиска верха/низа ниши
     "max_tilt_deg": 3.0,
     # компенсатор (как у тахеометра): каждые N замеров MPU6050 сверяется с наклоном из калибровки;
     # ушёл больше tol — станцию толкнули/просела нога: замер останавливается
-    "tilt_watch": {"every": 25, "tol_deg": 0.03, "n": 100, "settle_s": 0.2},
+    "tilt_watch": {"every": 25, "tol_deg": None, "n": 100, "settle_s": 0.3},   # tol None: 0,02° для SCL3300, 0,03° для MPU6050
     "stake": {"iters": 4, "tol_mm": 0.3, "avg": 3, "line_step_mm": 25, "line_dwell_s": 0.03},
     "check_tol_mm": 2.0,               # контроль стоянки: допуск по опорным маркам
     # шнур привода: пробег барабанов (обороты), шаги/оборот нового шнура, ресурс; вытяжка > drift_ppm -> заменить
@@ -190,6 +192,59 @@ class Sim:
     def pointer(self, on=True): pass
 
 
+class SCL3300:
+    """Murata SCL3300 — инклинометр (MIKROE Inclinometer Click / SCL3300-D01-PCB).
+    Pi SPI0: MOSI GPIO10 (конт. 19), MISO GPIO9 (21), SCLK GPIO11 (23), CS CE0 GPIO8 (24), 3,3 В (17), GND (20).
+    Протокол: 32-битные кадры [OP 8 | данные 16 | CRC-8], ответ на команду приходит в СЛЕДУЮЩЕМ кадре;
+    CRC-8 полином 0x1D, нач. 0xFF, по битам 31..8, инверсия. Режим 4 (инклинометр, низкий шум): 12000 LSB/g, ФНЧ 10 Гц."""
+    RD_ACC = (0x040000F7, 0x080000FD, 0x0C0000FB)          # ACC_X, ACC_Y, ACC_Z
+    RD_STATUS, RD_WHOAMI = 0x180000E5, 0x40000091
+    WAKEUP, SW_RESET, MODE4, ANG_EN = 0xB400001F, 0xB4002098, 0xB4000338, 0xB0001F6F
+    SENS = 12000.0
+
+    def __init__(self, bus=0, dev=0, axes=(0, 1, 2), sign=(1, 1, 1), spi=None):
+        if spi is None:
+            import spidev
+            spi = spidev.SpiDev(); spi.open(bus, dev); spi.max_speed_hz = 2_000_000; spi.mode = 0
+        self.spi, self.axes, self.sign = spi, list(axes), np.array(sign, float)
+        self.frame(self.WAKEUP); time.sleep(0.001); self.frame(self.SW_RESET); time.sleep(0.001)
+        self.frame(self.MODE4); self.frame(self.ANG_EN); time.sleep(0.1)          # режим 4: установление ~100 мс
+        for _ in range(3): self.frame(self.RD_STATUS)                               # сброс флагов после старта
+        who = self.read(self.RD_WHOAMI) & 0xFF
+        if who != 0xC1: raise RuntimeError(f"SCL3300 не отвечает (WHOAMI={who:#04x}, ждали 0xC1) — проводка SPI, включён ли SPI (raspi-config)")
+
+    @staticmethod
+    def crc(v):
+        c = 0xFF
+        for i in range(31, 7, -1):
+            t = c & 0x80
+            if (v >> i) & 1: t ^= 0x80
+            c = (c << 1) & 0xFF
+            if t: c ^= 0x1D
+        return (~c) & 0xFF
+
+    def frame(self, cmd):
+        r = self.spi.xfer2(list(cmd.to_bytes(4, "big"))); time.sleep(0.00002); return int.from_bytes(bytes(r), "big")
+
+    def _parse(self, v):
+        if self.crc(v) != (v & 0xFF): raise IOError(f"SCL3300: ошибка CRC в кадре {v:#010x}")
+        if (v >> 24) & 3 == 3: raise IOError("SCL3300: статус ошибки (RS=11) — питание/перегрев/удар, перезапуск")
+        d = (v >> 8) & 0xFFFF; return d - 65536 if d & 0x8000 else d
+
+    def read(self, cmd):
+        self.frame(cmd); return self._parse(self.frame(self.RD_STATUS))
+
+    def acc(self):
+        """Один отсчёт ускорения X, Y, Z (g): команды цепочкой, каждый ответ — на предыдущую команду."""
+        self.frame(self.RD_ACC[0]); x = self.frame(self.RD_ACC[1]); y = self.frame(self.RD_ACC[2]); z = self.frame(self.RD_STATUS)
+        return np.array([self._parse(x), self._parse(y), self._parse(z)], float)/self.SENS
+
+    def read_up(self, n=200, dt=0.0025):
+        """Единичный вектор «вверх» в осях головы (X — луч, Y — ось V, Z — вверх), среднее n отсчётов."""
+        a = np.mean([self.acc() for _ in range(n) if (time.sleep(dt) or True)], 0)
+        a = a[self.axes]*self.sign; return a/np.linalg.norm(a)
+
+
 class IMU:
     """MPU6050 (GY-521) в голове: I2C-1 (pin 3 SDA, pin 5 SCL, pin 1 3,3V, pin 9 GND), адрес 0x68.
     Ось X — по лучу, Y — вдоль оси V (влево), Z — вверх. Возвращает единичный вектор «вверх» в осях датчика."""
@@ -303,11 +358,24 @@ class Station:
         c = v / b.get("cells", 5); p = float(np.interp(c, [t[0] for t in tab], [t[1] for t in tab]))
         return round(v, 2), round(p)
 
+    def _imu_dev(self):
+        if not hasattr(self, "_imu"):
+            c = self.cfg["imu"]
+            if c.get("type", "scl3300") == "scl3300": self._imu = SCL3300(c.get("spi_bus", 0), c.get("spi_dev", 0), c.get("axes", [0, 1, 2]), c["sign"])
+            else: self._imu = IMU(c["bus"], c["addr"], c["sign"])
+        return self._imu
+
+    def _imu_get(self, n):
+        d = self._imu_dev(); return d.read_up(n) if isinstance(d, SCL3300) else d.read(n)
+
+    def tilt_tol(self):
+        t = self.cfg["tilt_watch"].get("tol_deg")
+        if t: return t
+        return 0.02 if (self.cfg["imu"].get("type", "scl3300") == "scl3300" and not self.sim) else 0.03   # симулятор — датчик класса MPU6050
+
     def imu_read(self):
         if self.sim: return self.ard.imu()
-        if not hasattr(self, "_imu"):
-            c = self.cfg["imu"]; self._imu = IMU(c["bus"], c["addr"], c["sign"])
-        time.sleep(self.cfg["imu"]["settle_s"]); return self._imu.read()
+        time.sleep(self.cfg["imu"]["settle_s"]); return self._imu_get(self.cfg["imu"].get("n", 300))
 
     # ---------- шнур: масштаб и проскальзывание по метке нуля Hz ----------
     def belt(self): return self.cfg.get("hz_drive", "belt") == "belt"
@@ -373,9 +441,7 @@ class Station:
 
     def _imu_fast(self):
         if self.sim: return self.ard.imu()
-        if not hasattr(self, "_imu"):
-            c = self.cfg["imu"]; self._imu = IMU(c["bus"], c["addr"], c["sign"])
-        w = self.cfg["tilt_watch"]; time.sleep(w["settle_s"]); return self._imu.read(w["n"])
+        w = self.cfg["tilt_watch"]; time.sleep(w["settle_s"]); return self._imu_get(w["n"])
 
     def tilt_arm(self):
         """После калибровки: запомнить смещение нуля датчика при уже известных наклоне и индексе V."""
@@ -388,7 +454,7 @@ class Station:
         return math.degrees(float(np.linalg.norm(self._imu_fast()[:2] - self._imu_pred() - np.array(b))))
 
     def tilt_guard(self):
-        d = self.tilt_dev(); tol = self.cfg["tilt_watch"]["tol_deg"]
+        d = self.tilt_dev(); tol = self.tilt_tol()
         if d is not None and d > tol:
             raise Moved(f"наклон станции изменился на {d:.3f}° (допуск {tol}°) — станцию толкнули? «Калибровка», затем «Проверка стоянки»")
         return d
@@ -523,13 +589,15 @@ class Station:
         return pts
 
     # ---------- цилиндры-марки (переход между помещениями без наводки) ----------
-    def find_cylinders(self, ring=None, R=50.0, step=0.5):
+    def find_cylinders(self, ring=None, R=50.0, step=0.5, fine=0.05):
         """Цилиндры-марки, перекрывающие высоту луча: круговой профиль (готовый из скана или новый при V=0) ->
         «бугорки» ближе фона шириной ~2R -> дорисовка шагом 0,05° -> центр окружности известного радиуса ->
         верхняя кромка подъёмом луча (бисекция по V). -> [dict(xy, z_top, n, rms)]"""
-        v0 = self.cfg["cal"].get("v0", 0)
-        if ring is None:
-            ring = [self.point(k*step, v0) for k in range(int(round(360/step)))]
+        if ring is None:                                     # строго горизонтальный круг на высоте луча (поправка наклона через aim)
+            ring = []
+            for k in range(int(round(360/step))):
+                a = math.radians(k*step); hz, vv = self.aim([math.cos(a), math.sin(a), 0.0])
+                ring.append(self.point(hz, vv))
         P = np.array([p for p in ring if p[2] > 0]); P = P[np.argsort(P[:, 0])]
         X = self.xyzs(P); r = np.hypot(X[:, 0], X[:, 1]); n = len(P); found = []
         bg = np.array([np.median(np.r_[r[max(0, i - 20):max(0, i - 3)], r[i + 4:i + 21]]) for i in range(n)])
@@ -540,12 +608,12 @@ class Station:
             while j + 1 < n and fg[j + 1]: j += 1
             dist = float(np.median(r[i:j + 1])); span = (P[j, 0] - P[i, 0]) % 360 + step
             exp = math.degrees(2*math.asin(min(1, R/max(dist, R + 1))))
-            if 0.4*exp < span < 1.8*exp and dist < 9000: found.append((P[i, 0] - 1.0, P[j, 0] + 1.0, float(np.median(P[i:j + 1, 1])), dist))
+            if 0.4*exp < span < 1.8*exp + 2*step and dist < 9000: found.append((P[i, 0] - 1.0, P[j, 0] + 1.0, float(np.median(P[i:j + 1, 1])), dist))
             i = j + 1
         out = []
         for h0, h1, v, dist in found:
-            Q = np.array([q for q in (self.point(hz % 360, v) for hz in np.arange(h0, h1, 0.05)) if q[2] > 0])
-            Y = self.xyzs(Q); rr = np.hypot(Y[:, 0], Y[:, 1]); Y = Y[rr < np.median(rr) + 30][:, :2]
+            Q = np.array([q for q in (self.point(hz % 360, v) for hz in np.arange(h0, h1, fine)) if q[2] > 0])
+            Y = self.xyzs(Q); rr = np.hypot(Y[:, 0], Y[:, 1]); Y = Y[rr < dist + R + 20][:, :2]          # только цилиндр (не стена за ним)
             if len(Y) < 8: continue
             c = Y.mean(0); c = c + c/np.linalg.norm(c)*R*0.8
             for _ in range(20):                                                         # окружность известного радиуса
@@ -605,13 +673,19 @@ def sniff(port, bauds):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["sniff", "probe", "measure", "jog", "calrev", "scan",
-                                    "photos", "camcal"])
+                                    "photos", "camcal", "imu"])
     ap.add_argument("args", nargs="*"); ap.add_argument("-n", type=int, default=10)
     ap.add_argument("-o", default="scan.json"); ap.add_argument("--dxf"); ap.add_argument("--sim", action="store_true")
     a = ap.parse_args(); cfg = load_cfg()
     if a.cmd == "sniff": return sniff(cfg["laser"]["port"], a.args)
     st = Station(cfg, a.sim)
 
+    if a.cmd == "imu":                                      # проверка датчика наклона и осей: голова по горизонту, луч вперёд
+        for _ in range(a.n):
+            u = st._imu_get(100) if not a.sim else st.imu_read()
+            print(f"  вверх: X {u[0]:+.5f}  Y {u[1]:+.5f}  Z {u[2]:+.5f}   наклон луча {math.degrees(math.asin(max(-1, min(1, u[0])))):+.3f}°")
+        print("  Z ≈ +1; наклоните голову лучом вверх — X растёт (+); иначе поправьте imu.axes/sign в config.json")
+        return
     if a.cmd == "probe":
         b = st.las.raw(); print("HEX:", b.hex(" ")); print("ASCII:", b)
     elif a.cmd == "measure":

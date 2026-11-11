@@ -57,11 +57,12 @@ class Room:
         p = PIL["dep"]
         vq((0, PIL["y1"]), (p, PIL["y1"])); vq((p, PIL["y1"]), (p, PIL["y0"])); vq((p, PIL["y0"]), (0, PIL["y0"]))
         for tg in targets:                                      # цилиндры-марки: (x, y[, низ над полом]) — боковая поверхность + крышка
-            tx_, ty_ = tg[0], tg[1]; zf = FLOOR[0]*tx_ + FLOOR[1]*ty_ + FLOOR[2] + (tg[2] if len(tg) > 2 else 0); th = np.linspace(0, 2*math.pi, 73)
-            P = [(tx_ + TGT_R*math.cos(t), ty_ + TGT_R*math.sin(t)) for t in th]
+            tx_, ty_ = tg[0], tg[1]; zf = FLOOR[0]*tx_ + FLOOR[1]*ty_ + FLOOR[2] + (tg[2] if len(tg) > 2 else 0); th = np.linspace(0, 2*math.pi, 145)
+            Rt, Ht = (tg[3], tg[4]) if len(tg) > 4 else (TGT_R, TGT_H)
+            P = [(tx_ + Rt*math.cos(t), ty_ + Rt*math.sin(t)) for t in th]
             for a, b in zip(P[:-1], P[1:]):
-                vq(b, a, zf, zf + TGT_H)
-                q.append(([tx_, ty_, zf + TGT_H], [a[0], a[1], zf + TGT_H], [b[0], b[1], zf + TGT_H], [tx_, ty_, zf + TGT_H], 0))
+                vq(b, a, zf, zf + Ht)
+                q.append(([tx_, ty_, zf + Ht], [a[0], a[1], zf + Ht], [b[0], b[1], zf + Ht], [tx_, ty_, zf + Ht], 0))
         T = []; tags = []
         for a, b, c, d, tag in q:
             T += [(a, b, c), (a, c, d)]; tags += [tag, tag]

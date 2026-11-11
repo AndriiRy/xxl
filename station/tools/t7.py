@@ -3,11 +3,13 @@ import sys, os, shutil, math, time, numpy as np
 sys.path.insert(0, sys.argv[1]); sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); os.chdir(sys.argv[1])
 import web, sim_room
 d = sys.argv[2]; shutil.rmtree(d, ignore_errors=True)
-TG = [(600, 2800, 1150), (3700, 500, 1150), (400, 500, 1150)]   # на стойках: низ 1150, верх 1400 над полом
-A = web.App(d, True); A.cfg["sim_targets"] = TG
+MINI = "mini" in sys.argv
+TG = [(600, 2800, 1300, 25, 70), (3700, 500, 1300, 25, 70), (400, 500, 1300, 25, 70)] if MINI else \
+     [(600, 2800, 1150, 50, 250), (3700, 500, 1150, 50, 250), (400, 500, 1150, 50, 250)]   # мини: Ø50x70 на 1300–1370; большие: Ø100x250
+A = web.App(d, True); A.cfg["sim_targets"] = TG; A.cfg["targets"] = {"R": 25.0, "fine": 0.025} if MINI else {"R": 50.0, "fine": 0.05}
 A.new_project("cyl"); st = A.station(); room = st.ard.room
 t0 = time.time(); A.job_scan(); A.job_targets(); t1 = time.time()
-A.job_newsetup("S2"); room.set_pose((2800, 2200, 1250), -0.3, 0.7, 137)
+A.job_newsetup("S2"); room.set_pose((2800, 2200, 1350 if MINI else 1250), -0.3, 0.7, 137)   # мини: штатив той же высоты
 A.job_calib(); A.job_scan(); t2 = time.time(); A.job_targets(); t3 = time.time()
 m = A.model()
 for s in m["setups"]: print(s["name"], {k: (round(v, 2) if isinstance(v, float) else v) for k, v in (s.get("reg") or {}).items()})
