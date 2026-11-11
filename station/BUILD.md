@@ -55,7 +55,8 @@
 | Позиция | ≈ zł | Где |
 |---|---|---|
 | Инклинометр SCL3300 (точнее нивелир; в программе по умолчанию, MPU6050 есть) | 300 | TME SCL3300-D01-PCB; Mouser/RS — MIKROE-4753 |
-| Pi Camera Module 3 (фото стен → развёртки) | 100 | botland.store/22478, TME SC1223 |
+| Pi Camera Module 3 **Standard** (не Wide, не NoIR; фото стен → развёртки) | 140 | Allegro (139,65 с 2 шлейфами), botland.store/22478, TME SC1223 |
+| Шлейф CSI 15-pin Standard–Standard **300 мм** (для Pi 4; оранжевый Standard–Mini — только для Pi 5) | 15 | Allegro / botland |
 | Модуль дальномера UART ±1 мм, 50 м — замена Bosch (быстрее ×10) | 290 | kamami.pl/580934 |
 
 **Уже есть:** Bosch GLM 40 (3 601 K72 900, 04/2024, Malaysia), Pi 4, microSD, Arduino Nano, MPU6050, TCRT5000, ZK-4KX (лабораторный БП).
