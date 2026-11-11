@@ -20,6 +20,7 @@ CFG_DEFAULT = {
     "arduino": {"port": "/dev/ttyUSB0", "baud": 115200},
     "laser": {
         "port": "/dev/serial0", "baud": 19200, "timeout": 3.0,
+        "preset": "",                 # готовый протокол: bosch (GLM/PLR, отладочный порт) | jrt | hi50 | sen0366 — заменяет поля ниже
         "cmd_hex": "",                # команда одиночного замера из даташита, напр. "aa 00 00 20 00 01 00 00 21"
         "mode": "ascii",              # ascii: число из ответа по regex | binary: байты offset/length
         "regex": r"(\d+\.\d+|\d+)", "scale": 1000.0,      # ascii: метры -> мм (scale=1 если ответ в мм)
@@ -106,9 +107,26 @@ class Arduino:
         n = self.cmd("H"); self.pos = self.cmd("P"); return n          # прошивка обнуляет счётчик Hz на метке
 
 
+LASER_PRESETS = {
+    # Bosch GLM/PLR: однопроводной отладочный порт 3,3 В, 9600 8N1 (разобрано для PLR15/GLM 20/GLM 100C; GLM 40 — проверить).
+    # Ответ: 00 04 <расстояние int32 LE, ед. 0,05 мм> <CRC>; первый байт 0 = успех. Эхо своей команды отрезается.
+    "bosch": dict(baud=9600, cmd_hex="c0 40 00 ee", mode="binary", offset=2, length=4, endian="little", scale=0.05,
+                  status_ok=0, strip_echo=True, pointer_hex="c0 41 00 96", pointer_off_hex="c0 42 00 1e", timeout=4.0),
+    # JRT U81/U85/M88B (протокол AA): ответ в мм, поле с 6-го байта
+    "jrt": dict(baud=19200, cmd_hex="aa 00 00 20 00 01 00 00 21", mode="binary", offset=6, length=4, endian="big", scale=1.0,
+                pointer_hex="aa 00 01 be 00 01 00 01 c1", pointer_off_hex="aa 00 01 be 00 01 00 00 c0"),
+    # Hi-AT HI50 / M703A: ASCII, ответ «D: 1.234m,0079»
+    "hi50": dict(baud=19200, cmd_hex="44", mode="ascii", regex=r"(\d+\.\d+)m", scale=1000.0, pointer_hex="4f", pointer_off_hex="43"),
+    # DFRobot SEN0366: ASCII метры
+    "sen0366": dict(baud=9600, cmd_hex="80 06 02 78", mode="ascii", regex=r"(\d+\.\d+)", scale=1000.0,
+                    pointer_hex="80 06 05 01 74", pointer_off_hex="80 06 05 00 75"),
+}
+
+
 class Laser:
     def __init__(self, c):
         import serial
+        c = dict(c, **LASER_PRESETS.get(c.get("preset") or "", {}))
         self.c = c
         self.s = serial.Serial(c["port"], c["baud"], timeout=c["timeout"])
         self.cmd = bytes.fromhex(c["cmd_hex"]) if c["cmd_hex"] else b""
@@ -138,11 +156,20 @@ class Laser:
             chunk = self.s.read(self.s.in_waiting or 1)
             buf += chunk
             if not chunk and buf: break
+        if self.c.get("strip_echo") and self.cmd and buf.startswith(self.cmd): buf = buf[len(self.cmd):]   # однопроводной порт: TX слышен на RX
         return buf
 
-    def measure(self):
+    def wake(self):
+        """Ручной дальномер с портом (Bosch) спит после ~5 мин: нажать «замер» через PC817 и подождать включения."""
+        if self.btn is None: return False
+        self.btn.on(); time.sleep(self.c["press_ms"] / 1000); self.btn.off(); time.sleep(1.0); return True
+
+    def measure(self, retry=True):
         b = self.raw(); c = self.c
+        if not b and retry and self.cmd and self.wake(): return self.measure(False)
         if c["mode"] == "binary":
+            if c.get("status_ok") is not None and b[:1] and b[0] != c["status_ok"]:
+                raise RuntimeError(f"дальномер: ошибка замера (статус {b[0]:#04x}; блик/слишком далеко/темно): {b.hex(' ')}")
             f = b[c["offset"]:c["offset"] + c["length"]]
             if len(f) < c["length"]: raise RuntimeError(f"короткий ответ: {b.hex(' ')}")
             return int.from_bytes(f, c["endian"]) * c["scale"]
@@ -654,15 +681,19 @@ class Station:
         return out
 
 
-def sniff(port, bauds):
+def sniff(port, bauds, send=""):
     """Поиск UART внутри ручного дальномера: провод с площадки TX платы -> GPIO15 (RX Pi), GND -> GND.
-    На каждой скорости 8 с: в это время жать «замер» на дальномере. Ищем читаемый текст/повторяющиеся кадры."""
+    На каждой скорости 8 с: в это время жать «замер» на дальномере. Ищем читаемый текст/повторяющиеся кадры.
+    send="c0 40 00 ee": раз в 2 с слать команду (Bosch молчит, пока не спросят; однопроводной порт — эхо команды в начале)."""
     import serial
+    cmd = bytes.fromhex(send) if send else b""
     for b in [int(x) for x in bauds] or [9600, 19200, 38400, 57600, 115200]:
         s = serial.Serial(port, b, timeout=0.2); s.reset_input_buffer()
-        print(f"--- {b} бод: жмите «замер» 2-3 раза ---", flush=True)
-        buf = b""; t0 = time.time()
-        while time.time() - t0 < 8: buf += s.read(256)
+        print(f"--- {b} бод: " + (f"шлю {cmd.hex(' ')} ---" if cmd else "жмите «замер» 2-3 раза ---"), flush=True)
+        buf = b""; t0 = time.time(); tn = 0
+        while time.time() - t0 < 8:
+            if cmd and time.time() >= tn: s.write(cmd); tn = time.time() + 2
+            buf += s.read(256)
         s.close()
         if not buf: print("  тишина"); continue
         txt = sum(32 <= c < 127 or c in (10, 13) for c in buf) / len(buf)
@@ -676,8 +707,9 @@ def main():
                                     "photos", "camcal", "imu"])
     ap.add_argument("args", nargs="*"); ap.add_argument("-n", type=int, default=10)
     ap.add_argument("-o", default="scan.json"); ap.add_argument("--dxf"); ap.add_argument("--sim", action="store_true")
+    ap.add_argument("--send", default="", help="sniff: слать команду HEX, напр. «c0 40 00 ee» (Bosch)")
     a = ap.parse_args(); cfg = load_cfg()
-    if a.cmd == "sniff": return sniff(cfg["laser"]["port"], a.args)
+    if a.cmd == "sniff": return sniff(cfg["laser"]["port"], a.args, a.send)
     st = Station(cfg, a.sim)
 
     if a.cmd == "imu":                                      # проверка датчика наклона и осей: голова по горизонту, луч вперёд
