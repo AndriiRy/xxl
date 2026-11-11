@@ -54,6 +54,9 @@ CFG_DEFAULT = {
     "tilt_watch": {"every": 25, "tol_deg": 0.03, "n": 100, "settle_s": 0.2},
     "stake": {"iters": 4, "tol_mm": 0.3, "avg": 3, "line_step_mm": 25, "line_dwell_s": 0.03},
     "check_tol_mm": 2.0,               # контроль стоянки: допуск по опорным маркам
+    # шнур привода: пробег барабанов (обороты), шаги/оборот нового шнура, ресурс; вытяжка > drift_ppm -> заменить
+    "cord": {"hz_turns": 0.0, "v_turns": 0.0, "spr0": None, "since": ""},
+    "cord_life": {"hz": 50000, "v": 50000, "drift_ppm": 3000},
 }
 CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -148,6 +151,7 @@ class Sim:
     """Виртуальная кухня sim_room.py: ниша, пилястра, полукруглый выступ, неровная стена, наклонённый штатив.
     cfg["sim_scale_err"] = [eh, ev] — истинные шаги/оборот отличаются от config (износ/вытяжка шнура)."""
     MARK = 37.3                                                # метка нуля Hz (белая полоска на барабане), истинный угол
+    WIND = 1.5                                                 # ход барабана Hz: ±1,5 оборота от середины (шнур закреплён на концах)
     def __init__(self, cfg):
         import sim_room
         self.cfg, self.room, self.pos = cfg, sim_room.Room(), (0, 0)
@@ -156,7 +160,10 @@ class Sim:
         self.h_off = 0.0                                       # истинный Hz при счётчике 0
     def _sh(self): return self.spr0[0]*(1 + self.err[0])
     def _sv(self): return self.spr0[1]*(1 + self.err[1])
-    def move(self, h, v): self.pos = (int(round(h)), int(round(v))); return self.pos
+    def move(self, h, v):
+        w = (h/self._sh()*360 + self.h_off - self.MARK)/360
+        if abs(w) > self.WIND: raise RuntimeError(f"СИМ: шнур Hz за пределом хода барабана ({w:+.2f} оборота)")
+        self.pos = (int(round(h)), int(round(v))); return self.pos
     def jog(self, ax, n): return self.move(self.pos[0] + (n if ax == "H" else 0), self.pos[1] + (n if ax == "V" else 0))
     def zero(self): h, v = self.deg(); self.h_off = h; self.v_off += v; self.pos = (0, 0)
     def home(self):
@@ -198,7 +205,14 @@ class Station:
         else:
             self.ard = Arduino(cfg["arduino"]["port"], cfg["arduino"]["baud"])
             self.las = Laser(cfg["laser"])
-        self.sim = sim; self._np = 0
+        self.sim = sim; self._np = 0; self.odo = [0.0, 0.0]; self.cord_warn = None
+        mv, hm = self.ard.move, self.ard.home                  # пробег шнура: обороты барабанов Hz и V
+        def move(h, v):
+            p0 = self.ard.pos; r = mv(h, v)
+            self.odo[0] += abs(r[0] - p0[0])/self.cfg["steps_per_rev_hz"]; self.odo[1] += abs(r[1] - p0[1])/self.cfg["steps_per_rev_v"]; return r
+        def home():
+            n = hm(); self.odo[0] += n/self.cfg["steps_per_rev_hz"]; return n
+        self.ard.move, self.ard.home = move, home
         try: self.v_home()                                     # V известен сразу после включения
         except Exception as e: print(f"  ноль V не найден (нет MPU6050?): {e}")
 
@@ -276,22 +290,36 @@ class Station:
         time.sleep(self.cfg["imu"]["settle_s"]); return self._imu.read()
 
     # ---------- шнур: масштаб и проскальзывание по метке нуля Hz ----------
+    def home_near(self):
+        """Метка «своего» витка: шнур закреплён на барабане -> ход ±1,5 оборота, метка видна раз за оборот.
+        Станция паркуется на метке (счётчик 0) -> назад 160° и поиск вперёд всегда находит метку середины хода."""
+        self.ard.move(-round(self.cfg["steps_per_rev_hz"]*160/360), self.ard.pos[1])     # от середины хода (счётчик 0 = метка)
+        n = self.ard.home(); self.homed = True; return n
+
     def hz_scale(self, turns=2):
-        """Шаги на оборот Hz по метке TCRT5000: поиск нуля подряд = ровно один оборот барабана.
-        Шнур вытянулся/истёрся -> передаточное число чуть другое -> находим заново при каждой калибровке."""
-        spr = self.cfg["steps_per_rev_hz"]; self.ard.home(); N = [self.ard.home() for _ in range(turns)]
+        """Шаги на оборот Hz по метке TCRT5000: от метки витка −1 до метки витка 0 — ровно один оборот барабана.
+        Шнур вытянулся/истёрся -> передаточное число чуть другое -> находим заново при каждой калибровке.
+        Ход в пределах −1,05…0 оборота: барабан не выходит за длину шнура."""
+        spr = self.cfg["steps_per_rev_hz"]; self.home_near(); N = []
+        for _ in range(turns):
+            self.ard.move(-round(spr*366/360), self.ard.pos[1])        # на 366° назад: за метку витка −1
+            self.ard.home(); N.append(self.ard.home())                 # метка −1, затем полный оборот до метки 0
         n = float(np.mean(N))
         if abs(n/spr - 1) > 0.03:
             raise RuntimeError(f"метка нуля Hz: {n:.0f} шагов на оборот вместо ≈{spr} — проверьте TCRT5000 и белую метку")
         print(f"  масштаб Hz по метке: {n:.0f} шагов/оборот (было {spr}, {(n/spr - 1)*1e6:+.0f} ppm, разброс {max(N) - min(N)} шагов)")
+        c = self.cfg["cord"]
+        if not c.get("spr0"): c["spr0"] = n; print("  новый шнур: шаги/оборот запомнены как исходные")
+        c["drift_ppm"] = (n/c["spr0"] - 1)*1e6; lim = self.cfg["cord_life"]["drift_ppm"]
+        if abs(c["drift_ppm"]) > lim:
+            self.cord_warn = f"шнур Hz вытянулся/истёрся: {c['drift_ppm']:+.0f} ppm от нового (порог {lim}) — замените кассету"; print("  " + self.cord_warn)
         self.cfg["steps_per_rev_hz"] = int(round(n)); self.homed = True; self.cfg["cal"]["hz_mark"] = True; return n
 
     def hz_check(self):
         """После работы: доехать до метки и сравнить счётчик — проскальзывание шнура, пропуск шагов (град)."""
         if not getattr(self, "homed", False): return None
-        spr = self.cfg["steps_per_rev_hz"]; h0, v0 = self.ard.pos; found = self.ard.home()
-        tot = h0 + found; k = round(tot/spr); slip = tot - k*spr
-        self.ard.setpos(k*spr, self.ard.pos[1])                    # счётчик — как будто метку прошли без сброса
+        spr = self.cfg["steps_per_rev_hz"]; t = -round(spr*160/360)
+        self.ard.move(t, self.ard.pos[1]); slip = t + self.ard.home()     # метка середины хода: счётчик должен дать 0
         d = slip/spr*360; print(f"  контроль нуля Hz: расхождение {slip:+d} шагов ({d:+.4f}°)"); return d
 
     # ---------- компенсатор: контроль наклона ----------
@@ -349,7 +377,7 @@ class Station:
         for vv in (v,):
             for k in range(n):
                 hz = 360*k/n
-                p1 = self.point(hz, vv); p2 = self.point(hz + 180, (180 if vv > 0 else -180) - vv)
+                p1 = self.point(hz, vv); p2 = self.point((hz + 180) % 360, (180 if vv > 0 else -180) - vv)
                 if not (p1[2] > 0 and p2[2] > 0): continue
                 e = 0.0
                 for _ in range(6):                                      # секущая по e: z1(e) = z2(e)

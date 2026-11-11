@@ -23,7 +23,7 @@ st.ard.h_off += 0.1; A._slip(st); print("проскальзывание:", A.ale
 
 # --- 3. чертёж при замере
 def aim(P):
-    h, v = room.aim_world(P); st.ard.move(*st.deg2steps(h - st.ard.h_off, v - st.ard.v_off))
+    h, v = room.aim_world(P); st.ard.move(*st.deg2steps((h - st.ard.h_off) % 360, v - st.ard.v_off))
 def take(tool, pts):
     A.cad_cmd(dict(cmd="cad_tool", tool=tool))
     for P in pts: aim(P); A.job_cad_point()
@@ -45,7 +45,7 @@ print(f"плоскость потолка: истина {math.hypot(*sim_room.CE
 
 # --- 4. шаблон столешницы: Г-образная по стенам AB (с выпуклостью) и BC, H 900, глубина 600, мойка
 H = 900.0; zw = H + (to_w([0, 0, 0])[2])
-h0 = room.aim_world((400, 0, zw))[0] - st.ard.h_off; h1 = room.aim_world((4200, 1100, zw))[0] - st.ard.h_off
+h0 = (room.aim_world((400, 0, zw))[0] - st.ard.h_off) % 360; h1 = (room.aim_world((4200, 1100, zw))[0] - st.ard.h_off) % 360
 A.job_worktop(dict(h=H, depth=600, hz0=h0 % 360, hz1=h1 % 360, step=0.5, mode="touch", cut="мойка 1500 780 480 70"))
 P = np.array([to_w([*p, 0])[:2] for p in A.wt["poly"]])
 print("контур (мир):", " ".join(f"({x:.1f},{y:.1f})" for x, y in P))

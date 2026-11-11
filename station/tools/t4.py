@@ -12,7 +12,7 @@ A = web.App(d, True); A.new_project("icon"); st = A.station(); room = st.ard.roo
 A.job_scan()
 REFS = {"1": (1000, sim_room.bump(1000, 1600), 1600), "2": (4200, 2600, 1500), "3": (1000, 3400, 2000)}
 def aim(P):
-    h, v = room.aim_world(P); st.ard.move(*st.deg2steps(h - st.ard.h_off, v - st.ard.v_off))
+    h, v = room.aim_world(P); st.ard.move(*st.deg2steps((h - st.ard.h_off) % 360, v - st.ard.v_off))
 for k, P in REFS.items(): aim(P); A.job_ref(k)
 m = A.model(); r0 = m["rooms"][0]
 

@@ -18,6 +18,7 @@ import layout as LY
 import cadm
 import worktop as WT
 S_cfg_path = lambda: S.CFG_PATH
+POS_PATH = os.path.join(HERE, "hz_pos.json")              # последний счётчик Hz (после перезапуска — тот же виток шнура)
 
 
 class Abort(Exception): pass
@@ -69,11 +70,14 @@ class App:
         if self.st is None:
             self.say("подключение к станции" + (" (симуляция)" if self.sim else ""))
             self.st = S.Station(self.cfg, self.sim)
+            with contextlib.suppress(Exception):                # Arduino перезапущен, а барабан стоит, где стоял: вернуть счётчик
+                if not self.sim and os.path.exists(POS_PATH):
+                    p = json.load(open(POS_PATH)); self.st.ard.setpos(p["h"], self.st.ard.pos[1])
             with contextlib.suppress(Exception):                # перезапуск программы: ноль V — с наклоном из калибровки стоянки
                 cur = self.cur(self.proj())
                 if self.calibrated(cur):
                     self.cfg["cal"].update(cur["cal"])
-                    if cur["cal"].get("hz_mark"): self.st.ard.home(); self.st.homed = True     # ноль Hz — снова по метке
+                    if cur["cal"].get("hz_mark"): self.st.home_near()                         # ноль Hz — снова по метке
                     self.st.v_home(); print("  калибровка стоянки восстановлена")
         return self.st
 
@@ -96,6 +100,10 @@ class App:
                 self.say(traceback.format_exc(limit=4))
             finally:
                 self.busy = None
+                if self.st is not None and not self.sim and getattr(self.st, "homed", False):
+                    with contextlib.suppress(Exception): json.dump({"h": self.st.ard.pos[0]}, open(POS_PATH, "w"))   # виток барабана Hz
+                with contextlib.suppress(Exception): self.cord_save()
+                if self.st is not None and self.st.cord_warn: self.alert = self.st.cord_warn
         threading.Thread(target=work, daemon=True).start()
 
     def _counted(self, total, f):
@@ -342,6 +350,24 @@ class App:
 
     def job_zero(self):
         st_ = self.station(); st_.ard.zero(); self.say("текущее положение = 0")
+
+    # ---------- шнур: пробег и замена ----------
+    def cord_save(self, reset=False):
+        c = self.cfg["cord"]
+        if self.st is not None:
+            c["hz_turns"] = c.get("hz_turns", 0) + self.st.odo[0]; c["v_turns"] = c.get("v_turns", 0) + self.st.odo[1]; self.st.odo = [0.0, 0.0]
+        if reset:
+            c.clear(); c.update(hz_turns=0.0, v_turns=0.0, spr0=None, since=time.strftime("%Y-%m-%d"))
+            if self.st is not None: self.st.cord_warn = None
+            self.alert = None; print("  новый шнур: пробег обнулён, исходные шаги/оборот — при следующей «Калибровке»")
+        if not self.sim:
+            p = S_cfg_path(); f = json.load(open(p)) if os.path.exists(p) else {}
+            f["cord"] = c; json.dump(f, open(p, "w"), indent=1)
+
+    def cord_state(self):
+        c, L = self.cfg["cord"], self.cfg["cord_life"]; o = self.st.odo if self.st else [0, 0]
+        return dict(hz=round(100*(c.get("hz_turns", 0) + o[0])/L["hz"], 1), v=round(100*(c.get("v_turns", 0) + o[1])/L["v"], 1),
+                    drift=c.get("drift_ppm"), since=c.get("since", ""))
 
     # ---------- вынос проекта (как Leica iCON) ----------
     def load_layout(self):
@@ -601,7 +627,7 @@ class App:
                 "project": self.project, "projects": self.projects(), "pos": pos, "last": self.last,
                 "sim": self.sim, "setups": setups, "zref": self.zref, "marks": self.marks, "mount": self.cfg["mount"],
                 "quick": quick, "batt": batt, "alert": self.alert, "lay": self.lay_state(),
-                "cad": self.cad_state() if self.project else None, "wt": self.wt}
+                "cad": self.cad_state() if self.project else None, "wt": self.wt, "cord": self.cord_state()}
 
     def lay_state(self):
         r = None
@@ -692,6 +718,7 @@ class H(BaseHTTPRequestHandler):
             if c == "layout": return self.send(200, {"n": A.set_layout(b)})
             if c == "sel": A.sel = int(b["id"]); return self.send(200, {"ok": 1})
             if c == "alert_ok": A.alert = None; return self.send(200, {"ok": 1})
+            if c == "cord_new": A.cord_save(reset=True); return self.send(200, {"ok": 1})
             if c in ("cad_tool", "cad_done", "cad_undo", "cad_del", "cad_make", "cad_clear"):
                 if A.busy: raise RuntimeError("занято")
                 return self.send(200, A.cad_cmd(b))

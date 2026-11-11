@@ -15,5 +15,5 @@ print("H:", " ".join(f'{c["h"]:.0f}' for c in r["corners"]), "| истина ≈
 # быстрый замер: 2 точки
 P1, P2 = (1000, sim_room.bump(1000, 1600), 1600), (4200, 2600, 1500)
 for P in (P1, P2):
-    h, v = room.aim_world(P); st.ard.move(*st.deg2steps(h - st.ard.h_off, v - st.ard.v_off)); A.job_qpoint("p")
+    h, v = room.aim_world(P); st.ard.move(*st.deg2steps((h - st.ard.h_off) % 360, v - st.ard.v_off)); A.job_qpoint("p")
 q = A.state()["quick"]; L = math.dist(q[0], q[1]); print(f"P2P: станция {L:.1f}  истина {math.dist(P1, P2):.1f}  ΔH {q[1][2]-q[0][2]:+.1f} (истина {P2[2]-P1[2]:+.1f})")

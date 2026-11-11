@@ -15,7 +15,8 @@ BH_OD = 42.15; BH_W = 7;               // 6806-2RS (30x42x7) — 2 шт в Hz-б
 MOT = 42.3; MOT_L = 23;                // NEMA17 «блинчик» 17HS4023 (23 мм); обычный — MOT_L = 40
 SHAFT_R = 3.0; CORD = 0.5; PITCH = 1.2;// латунная втулка 6x0,5 на валу 5 мм; PE-плетёнка 0,5
 // ---------- Hz ----------
-HZ_D = 120; HZ_H = 22; HZ_TURNS = 2.5; HZ_G0 = 4;      // передача 120,5/6,5 = 1:18,5
+HZ_D = 120; HZ_H = 22; HZ_TURNS = 3.5; HZ_G0 = 4;      // передача 120,5/6,5 = 1:18,5; 3,5 витка: ход барабана ±1,5 оборота
+HZ_A0 = 72; SPR_A = 35; CORD_R = 53;                   // быстрая замена шнура: узел A (72°), пружина B (252°+35°) — открыты сверху между башнями
 MOT_X = HZ_D/2 + SHAFT_R + CORD + 0.3;                  // ось мотора Hz
 // ---------- V ----------
 V_D = 70; V_W = 14; V_TURNS = 1.6;                      // передача 70,5/6,5 = 1:10,8
@@ -138,14 +139,19 @@ module hz_drum() {
         translate([0, 0, -0.01]) cylinder(d = BH_OD, h = BH_W);
         translate([0, 0, HZ_H - BH_W]) cylinder(d = BH_OD, h = BH_W + 0.01);
         translate([0, 0, -1]) cylinder(d = 36, h = HZ_H + 2);
-        helix_groove(HZ_D/2, HZ_TURNS, HZ_G0);
-        for (k = [0, 1]) { z = HZ_G0 + (k ? PITCH*HZ_TURNS : 0); a = k ? -360*HZ_TURNS : 0;
-            rotate(a) translate([HZ_D/2 - 12, 0, z]) rotate([0, 90, 0]) cylinder(d = 2, h = 20);
-            rotate(a) translate([HZ_D/2 - 19, -3, -1]) cube([7, 6, HZ_H + 2]); }
+        rotate(HZ_A0) helix_groove(HZ_D/2, HZ_TURNS, HZ_G0);
+        // КАССЕТА ШНУРА (сверху, без инструмента). A: узел с бусиной Ø≤4,5 — в карман, шнур — в прорезь 1,4.
+        rotate(HZ_A0) { translate([CORD_R, 0, HZ_G0 - 2]) cylinder(d = 5, h = HZ_H); translate([CORD_R - 1, -0.7, HZ_G0 - 0.7]) cube([10, 1.4, HZ_H]); }
+        // B (3,5 витка — напротив A): прорезь + дуговой канал под пружину растяжения Ø≤6 (постоянное натяжение, выбирает вытяжку)
+        rotate(HZ_A0 + 180) {
+            translate([CORD_R - 1, -0.7, HZ_G0 + PITCH*HZ_TURNS - 0.7]) cube([10, 1.4, HZ_H]);
+            translate([0, 0, HZ_G0 + PITCH*HZ_TURNS - 3.5]) rotate_extrude(angle = SPR_A, $fn = 180) translate([CORD_R - 3.5, 0]) square([7, HZ_H]);
+        }
         for (p = ALI_BOLTS) translate([p[0], p[1], -1]) { cylinder(d = 4.4, h = HZ_H + 2); rotate([0, 0, 30]) hex(7, 4.5); }
         rotate(-60) translate([HZ_D/2 - 19, -2, -0.01]) cube([14, 4, 0.6]);                   // метка нуля Hz: белая вставка (AMS) или белая краска
         for (a = [30, 150, 210, 330]) rotate(a) translate([40, 0, HZ_G0 + 6]) cylinder(d = 18, h = HZ_H);
     }
+    rotate(HZ_A0 + 180 + SPR_A - 4) translate([CORD_R, 0, HZ_G0 + PITCH*HZ_TURNS - 3.6]) cylinder(d = 2.8, h = HZ_H - HZ_G0 - PITCH*HZ_TURNS + 2.6, $fn = 16);  // крючок пружины
 }
 ALI_BOLTS = [[30, 22], [30, -22], [-30, 22], [-30, -22]];
 
@@ -155,7 +161,8 @@ module tower2d(s) if (s < 0) rquad(-POD_LX, -POD_IN, -POD_Y, POD_Y, POD_R, 3); e
 module cav2d(s) intersection() { offset(delta = -2.4) tower2d(s);
     translate([s < 0 ? -200 : POD_IN + POD_WALL, -100]) square([s < 0 ? 200 - POD_IN - POD_WALL : 200, 200]); }
 function lid_pts(s) = [for (x = s < 0 ? [-POD_LX + 6.5, -POD_IN - POD_WALL - 4] : [POD_IN + POD_WALL + 4, POD_RX - 6.5], y = [-POD_Y + 6, POD_Y - 6]) [x, y]];
-module plate2d() offset(r = 4) offset(delta = -4) intersection() { circle(r = 52); translate([-POD_IN - 1, -60]) square([2*POD_IN + 2, 120]); }
+module plate2d() offset(r = 4) offset(delta = -4) intersection() { circle(r = 47);   // r47: открыт доступ к кассете шнура
+    translate([-POD_IN - 1, -60]) square([2*POD_IN + 2, 120]); }
 module alidade() {
     mz = AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3);       // ось мотора V
     difference() {
@@ -187,8 +194,9 @@ module alidade() {
     // стойки винтов крышек М3 (с косынкой к стенке — печать без поддержек)
     intersection() {
         for (s = [-1, 1], p = lid_pts(s)) difference() {
-            hull() { translate([p[0], p[1], POD_H - 8]) cylinder(d = 7, h = 8); translate([p[0], sign(p[1])*(POD_Y - 2.6), POD_H - 16]) cylinder(d = 7, h = 0.01); }
-            translate([p[0], p[1], POD_H - 11]) cylinder(d = 2.6, h = 12);
+            hull() { translate([p[0], p[1], POD_H - 8]) cylinder(d = 9, h = 8); translate([p[0], sign(p[1])*(POD_Y - 2.6), POD_H - 18]) cylinder(d = 9, h = 0.01); }
+            if (s > 0) translate([p[0], p[1], POD_H - 11]) cylinder(d = 2.6, h = 12);                      // правая: винты М3
+            else translate([p[0], p[1], POD_H - 3.2]) cylinder(d = 6.3, h = 3.3);                          // левая (шнур V): магниты 6x3
         }
         linear_extrude(POD_H) for (s = [-1, 1]) tower2d(s);
     }
@@ -197,9 +205,10 @@ module alidade() {
 module pod_lid(s) difference() {
     union() {
         rprism(LID_T, 3, 0, true) tower2d(s);
-        translate([0, 0, -2.5]) linear_extrude(2.51) difference() { offset(delta = -0.25) cav2d(s); offset(delta = -2.05) cav2d(s); for (p = lid_pts(s)) translate(p) circle(d = 9); }
+        translate([0, 0, -2.5]) linear_extrude(2.51) difference() { offset(delta = -0.25) cav2d(s); offset(delta = -2.05) cav2d(s); for (p = lid_pts(s)) translate(p) circle(d = 11); }
     }
-    for (p = lid_pts(s)) translate([p[0], p[1], -4]) { cylinder(d = 3.2, h = 10); translate([0, 0, LID_T + 4 - 1.8]) cylinder(d = 6, h = 2); }
+    for (p = lid_pts(s)) if (s > 0) translate([p[0], p[1], -4]) { cylinder(d = 3.2, h = 10); translate([0, 0, LID_T + 4 - 1.8]) cylinder(d = 6, h = 2); }
+                         else translate([p[0], p[1], -0.01]) cylinder(d = 6.3, h = 3.2);                     // магниты 6x3: крышка снимается рукой
 }
 
 // ================= ГОЛОВА: дальномер + камера + MPU6050, окно из оргстекла 2 мм =================
