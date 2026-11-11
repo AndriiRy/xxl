@@ -28,7 +28,8 @@ CFG_DEFAULT = {
         "presses": 1, "press_ms": 150, "gap_ms": 400,      # сколько нажатий нужно для замера
         "pointer_hex": "", "pointer_off_hex": "",          # модуль: команды «лазер вкл/выкл» (указка для выноса); ручной — 1 нажатие
     },
-    "steps_per_rev_hz": 59323,        # 3200 мкш * (120,5/6,5); уточнить командой calrev
+    "hz_drive": "belt",               # belt: ремень GT2 188/16, вращение без ограничения | cord: шнур, ход ±1,5 оборота (v5)
+    "steps_per_rev_hz": 75200,        # 200 шагов * 32 мкш (TMC2209: MS1=1, MS2=0) * 188/16; шнур v5: 59323
     "steps_per_rev_v": 34708,         # 3200 * (70,5/6,5)
     "v_min_deg": -45.0,               # ниже луч упирается в барабан/корпус; исключение — отвес (-90° через полую ось)
     "settle_s": 0.3,
@@ -41,7 +42,7 @@ CFG_DEFAULT = {
         "tripod": {"plane_v_deg": [35, 50, 70, -25, -32, -40, -45], "max_tilt_deg": 3.0},
         "floor":  {"plane_v_deg": [25, 35, 50, 70, -6, -9, -13, -20], "max_tilt_deg": 5.0, "profile_z": 1000, "step": 1.0},
         "table":  {"plane_v_deg": [25, 35, 50, 70, -20, -28, -36, -44], "max_tilt_deg": 5.0, "profile_z": 1000, "step": 1.0}},
-    "base_drop_mm": 152,               # луч над опорой (ножки) — из station.scad, BEAM_H
+    "base_drop_mm": 156,               # луч над опорой (ножки) — из station.scad, BEAM_H
     "battery": {"ina219": None, "cells": 3},   # INA219 (адрес 64) в правой башне — напряжение 3S (9,0–12,6 В)
     "cal": {"d0": 0, "hz0": 0, "v0": 0, "tilt_x": 0, "tilt_y": 0, "e": 0},
     "camera": {},                      # поля поверх photos.CAM_DEFAULT
@@ -56,7 +57,7 @@ CFG_DEFAULT = {
     "check_tol_mm": 2.0,               # контроль стоянки: допуск по опорным маркам
     # шнур привода: пробег барабанов (обороты), шаги/оборот нового шнура, ресурс; вытяжка > drift_ppm -> заменить
     "cord": {"hz_turns": 0.0, "v_turns": 0.0, "spr0": None, "since": ""},
-    "cord_life": {"hz": 50000, "v": 50000, "drift_ppm": 3000},
+    "cord_life": {"hz": 2000000, "v": 50000, "drift_ppm": 3000},   # Hz — ремень GT2 (почти не изнашивается); шнур v5: hz 50000
 }
 CFG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 
@@ -162,7 +163,7 @@ class Sim:
     def _sv(self): return self.spr0[1]*(1 + self.err[1])
     def move(self, h, v):
         w = (h/self._sh()*360 + self.h_off - self.MARK)/360
-        if abs(w) > self.WIND: raise RuntimeError(f"СИМ: шнур Hz за пределом хода барабана ({w:+.2f} оборота)")
+        if self.cfg.get("hz_drive", "belt") == "cord" and abs(w) > self.WIND: raise RuntimeError(f"СИМ: шнур Hz за пределом хода барабана ({w:+.2f} оборота)")
         self.pos = (int(round(h)), int(round(v))); return self.pos
     def jog(self, ax, n): return self.move(self.pos[0] + (n if ax == "H" else 0), self.pos[1] + (n if ax == "V" else 0))
     def zero(self): h, v = self.deg(); self.h_off = h; self.v_off += v; self.pos = (0, 0)
@@ -290,9 +291,13 @@ class Station:
         time.sleep(self.cfg["imu"]["settle_s"]); return self._imu.read()
 
     # ---------- шнур: масштаб и проскальзывание по метке нуля Hz ----------
+    def belt(self): return self.cfg.get("hz_drive", "belt") == "belt"
+
     def home_near(self):
         """Метка «своего» витка: шнур закреплён на барабане -> ход ±1,5 оборота, метка видна раз за оборот.
-        Станция паркуется на метке (счётчик 0) -> назад 160° и поиск вперёд всегда находит метку середины хода."""
+        Станция паркуется на метке (счётчик 0) -> назад 160° и поиск вперёд всегда находит метку середины хода.
+        Ремень (v6): ход не ограничен — просто поиск метки."""
+        if self.belt(): n = self.ard.home(); self.homed = True; return n
         self.ard.move(-round(self.cfg["steps_per_rev_hz"]*160/360), self.ard.pos[1])     # от середины хода (счётчик 0 = метка)
         n = self.ard.home(); self.homed = True; return n
 
@@ -301,7 +306,8 @@ class Station:
         Шнур вытянулся/истёрся -> передаточное число чуть другое -> находим заново при каждой калибровке.
         Ход в пределах −1,05…0 оборота: барабан не выходит за длину шнура."""
         spr = self.cfg["steps_per_rev_hz"]; self.home_near(); N = []
-        for _ in range(turns):
+        if self.belt(): N = [self.ard.home() for _ in range(max(1, turns - 1))]   # ремень: передача по зубьям, оборот — проверка
+        for _ in range(0 if self.belt() else turns):
             self.ard.move(-round(spr*366/360), self.ard.pos[1])        # на 366° назад: за метку витка −1
             self.ard.home(); N.append(self.ard.home())                 # метка −1, затем полный оборот до метки 0
         n = float(np.mean(N))
@@ -318,8 +324,12 @@ class Station:
     def hz_check(self):
         """После работы: доехать до метки и сравнить счётчик — проскальзывание шнура, пропуск шагов (град)."""
         if not getattr(self, "homed", False): return None
-        spr = self.cfg["steps_per_rev_hz"]; t = -round(spr*160/360)
-        self.ard.move(t, self.ard.pos[1]); slip = t + self.ard.home()     # метка середины хода: счётчик должен дать 0
+        spr = self.cfg["steps_per_rev_hz"]
+        if self.belt():                                                  # ремень: доехать вперёд до метки, сравнить с кратным обороту
+            h0 = self.ard.pos[0]; tot = h0 + self.ard.home(); k = round(tot/spr); slip = tot - k*spr
+            self.ard.setpos(k*spr, self.ard.pos[1])
+        else:
+            t = -round(spr*160/360); self.ard.move(t, self.ard.pos[1]); slip = t + self.ard.home()   # метка середины хода: счётчик = 0
         d = slip/spr*360; print(f"  контроль нуля Hz: расхождение {slip:+d} шагов ({d:+.4f}°)"); return d
 
     # ---------- компенсатор: контроль наклона ----------

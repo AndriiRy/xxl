@@ -215,7 +215,8 @@ class App:
     def _slip(self, st_):
         d = st_.hz_check()
         if d is not None and abs(d) > self.cfg.get("slip_tol_deg", 0.02):
-            self.alert = f"проскальзывание шнура Hz {d:+.3f}° за скан — подтяните шнур, повторите «Калибровку» и скан"
+            self.alert = (f"ремень Hz проскочил ({d:+.3f}° за скан) — проверьте натяжение ремня (пазы мотора), повторите «Калибровку» и скан" if st_.belt()
+                          else f"проскальзывание шнура Hz {d:+.3f}° за скан — подтяните шнур, повторите «Калибровку» и скан")
 
     def job_mount(self, m):
         if m not in self.cfg["mounts"]: raise ValueError("установка: tripod | floor | table")

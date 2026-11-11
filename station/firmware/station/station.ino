@@ -17,7 +17,7 @@
 #define V_NEMA17            // закомментировать -> 28BYJ-48 (только для пробы, точность хуже)
 
 AccelStepper hz(AccelStepper::DRIVER, 2, 5);
-const float HZ_VMAX = 3000, HZ_ACC = 4000;   // микрошаг/с, /с^2 (1/16)
+const float HZ_VMAX = 5000, HZ_ACC = 8000;   // микрошаг/с, /с^2 (v6: ремень, TMC2209 1/32: MS1=VCC, MS2=GND)
 const long  HZ_BL = 400;                      // перебег анти-люфт
 #ifdef V_NEMA17
   AccelStepper vv(AccelStepper::DRIVER, 3, 6);
@@ -58,7 +58,7 @@ void reply(const char *tag) {
 
 void home() {
   long start = hz.currentPosition();
-  hz.setMaxSpeed(HZ_VMAX / 6);
+  hz.setMaxSpeed(HZ_VMAX / 3);
   // если стоим на метке — сойти с неё
   while (digitalRead(PIN_HALL) == LOW) { hz.move(10); while (hz.distanceToGo()) hz.run(); }
   hz.moveTo(start + 2000000L);

@@ -219,7 +219,7 @@ async function poll(){
   document.querySelectorAll('[data-b]').forEach(b=>b.disabled=!!S.busy);
   const L=S.last; if(L&&L.plumb!=null)$('meas').innerHTML=`Отвес: ось станции на <b>${L.plumb.toFixed(1)}</b> мм над опорой`; else if(L&&L.d)$('meas').innerHTML=`D ${L.d.toFixed(1)} · X ${L.xyz[0].toFixed(0)} Y ${L.xyz[1].toFixed(0)} Z ${L.xyz[2].toFixed(1)}`+(L.dh!=null?` · <span style="color:var(--wr)">ΔH ${L.dh>=0?'+':''}${L.dh.toFixed(1)}</span>`:'');
   const mn=$('mnt');if(document.activeElement!==mn)mn.value=S.mount||'tripod';
-  const K=S.cord;if(K){const mx=Math.max(K.hz,K.v),bad=mx>=100||(K.drift!=null&&Math.abs(K.drift)>3000);$('setup').innerHTML+=` · <span style="color:${bad?'var(--er)':mx>80?'var(--wr)':'var(--mu)'}">шнур Hz ${K.hz.toFixed(0)}% V ${K.v.toFixed(0)}%${K.drift!=null?` · ${K.drift>=0?'+':''}${K.drift.toFixed(0)} ppm`:''}</span>`}
+  const K=S.cord;if(K){const mx=Math.max(K.hz,K.v),bad=mx>=100||(K.drift!=null&&Math.abs(K.drift)>3000);$('setup').innerHTML+=` · <span style="color:${bad?'var(--er)':mx>80?'var(--wr)':'var(--mu)'}">ремень Hz ${K.hz.toFixed(0)}% · шнур V ${K.v.toFixed(0)}%${K.drift!=null?` · ${K.drift>=0?'+':''}${K.drift.toFixed(0)} ppm`:''}</span>`}
   const B=S.batt;$('batt').innerHTML=B?`<span style="color:${B[1]<15?'var(--er)':B[1]<35?'var(--wr)':'var(--ok)'}">▮ ${B[1]}% · ${B[0].toFixed(1)} В</span>`:'';
   quickList(S.quick||[]);layPanel();cadPanel();$('alert').classList.toggle('on',!!S.alert);$('altx').textContent=S.alert||'';
   const mk=S.marks||{};$('marks').textContent=(mk.hz0!=null||mk.hz1!=null)?`сектор: ${f0(mk.hz0,2)}° → ${f0(mk.hz1,2)}°`:'';

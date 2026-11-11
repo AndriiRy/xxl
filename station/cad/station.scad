@@ -1,10 +1,14 @@
 // Компактная полярная станция «как DISTO 3D»: голова по центру в вилке из двух закрытых башен,
-// полая ось Hz (лазерный отвес вниз), тросиковый (capstan) привод, встроенный 3S 21700.
+// полая ось Hz (лазерный отвес вниз), встроенный 3S 21700.
+// v6: Hz крутится без ограничения (больше 360°): замкнутый ремень GT2, вращается весь корпус с аккумулятором и мотором,
+//     неподвижны только дно с ножками, ось-труба и шкив 188 зубьев -> провода через ось не идут (токосъёмник не нужен).
+//     Все узлы закрыты: ремень — в камере под палубой, шнур V — в башне. V — сменный картридж на 1 гайке-барашке.
 // v5: все наружные кромки скруглены (корпус R6, башни R8, голова R3, крышки, барабаны, ножки с шариком).
 // Кромки, которые лежат на столе принтера, — «печатное» скругление (дуга до 45° + фаска 45°): без поддержек.
 // Принтер: Bambu Lab P1S (256x256x256). PETG/PETG-HF, сопло 0,4, слой 0,2, 4 периметра, гироид 30-40 %.
 // Экспорт: openscad -D 'part="alidade"' -o alidade.stl station.scad
-// part: base | housing | hz_drum | alidade | pod_lid_l | pod_lid_r | head | head_lid | v_drum | collar | foot | assembly
+// part: base | spacer | deck | housing | alidade | pod_lid_l | pod_lid_r | head | head_lid
+//       v_cart | v_hub | v_drum | v_knob | collar | foot | assembly | down
 part  = "assembly";
 $fn = 96;
 
@@ -14,10 +18,15 @@ T_OD = 30.0;  T_ID = 26;               // ось Hz: алюминиевая тр
 BH_OD = 42.15; BH_W = 7;               // 6806-2RS (30x42x7) — 2 шт в Hz-барабане
 MOT = 42.3; MOT_L = 23;                // NEMA17 «блинчик» 17HS4023 (23 мм); обычный — MOT_L = 40
 SHAFT_R = 3.0; CORD = 0.5; PITCH = 1.2;// латунная втулка 6x0,5 на валу 5 мм; PE-плетёнка 0,5
-// ---------- Hz ----------
-HZ_D = 120; HZ_H = 22; HZ_TURNS = 3.5; HZ_G0 = 4;      // передача 120,5/6,5 = 1:18,5; 3,5 витка: ход барабана ±1,5 оборота
-HZ_A0 = 72; SPR_A = 35; CORD_R = 53;                   // быстрая замена шнура: узел A (72°), пружина B (252°+35°) — открыты сверху между башнями
-MOT_X = HZ_D/2 + SHAFT_R + CORD + 0.3;                  // ось мотора Hz
+// ---------- Hz: ремень GT2-6 (бесконечное вращение) ----------
+HZ_D = 120;                                             // габарит корпуса по кругу (R_BOX = 66)
+GT2_N = 188; GT2_M = 16;                                // неподвижный шкив 188 зубьев (печать), шкив мотора 16 зубьев -> 1:11,75
+GT2_PD = GT2_N*2/PI; GT2_OD = GT2_PD - 0.508;           // делительный 119,7, наружный 119,2
+MOT_X = 70.3;                                           // ось мотора Hz: ремень замкнутый 390 мм (195 зубьев); пазы ±2 мм — натяжение (388…392 мм)
+MOT_SHAFT = 24;                                         // вал мотора от фланца (до 24 мм — без укорачивания)
+// высоты (от низа дна): шкив — зубья на уровне ремня, палуба над шкивом, мотор стоит на палубе валом вниз
+P_HUB = 10; P_T = 8; DECK_GAP = 6; DECK_T = 3;   // зазор палуба—реборда 5 мм: TCRT5000 сверху палубы смотрит сквозь окно
+SKIRT_R = 82;                                           // камера ремня: кольцевая юбка под палубой (вращается), снизу — диск дна R86
 // ---------- V ----------
 V_D = 70; V_W = 14; V_TURNS = 1.6;                      // передача 70,5/6,5 = 1:10,8
 AXLE_Z = 64;                                            // ось V над верхом Hz-барабана (луч вниз до -46° мимо барабана)
@@ -27,12 +36,12 @@ POD_H = AXLE_Z + V_D/2 + 5;                             // высота баше
 LID_T = 4; POD_R = 8;                                   // крышки башен, радиус наружных углов башен
 HEAD_X = 18; HEAD_Y0 = -26; HEAD_Y1 = 34; HEAD_Z = 22;  // голова: полуширина, зад/перед (луч +Y), полувысота
 HEAD_R = 3;                                             // скругление головы
-// ---------- корпус Hz (неподвижный) ----------
+// ---------- корпус Hz (вращается вместе с алидадой) ----------
 WALL = 2.6; TOP_T = 8; GAP = 1;
 H_BOX = TOP_T + MOT_L + 3;                              // высота корпуса
 R_BOX = HZ_D/2 + 6;
 BOX_R = 6; TOP_R = 6;                                   // углы корпуса в плане, скругление верхней кромки
-MOT_M = 4.5;                                            // поле вокруг мотора Hz (место под скругление угла)
+MOT_M = 5.5;                                            // поле вокруг мотора Hz: скругление угла + сдвиг ±2 мм (натяжение ремня)
 // ---------- встроенный аккумулятор 3S1P 21700 (в корпусе Hz, напротив мотора) + дно с 3 конусами ----------
 BASE_T = 5;
 CELL_D = 21.6; CELL_L = 70.5; N_CELL = 3;               // 21700 (Molicel P45B / Samsung 50S); 18650: 18.6 x 65.5
@@ -40,7 +49,8 @@ PACK_X1 = -25;                                          // ближний к о�
 PACK_X0 = PACK_X1 - N_CELL*CELL_D - (N_CELL - 1);       // дальний край
 PACK_Y = CELL_L/2 + 5;                                  // полудлина отсека (+ никель/провода)
 FOOT_D = 30; FOOT_H = 26; FOOT_BOSS = 8;
-FEET = [[40, 68], [40, -68], [-98, 0]];                 // опоры (com.py): 198x160, опрокидывание при 25°
+FR = 92; FEET = [for (a = [180, 60, -60]) [FR*cos(a), FR*sin(a)]];   // 3 ножки на R92 (дно неподвижно, корпус крутится над ним)
+BASE_R = 86;                                            // диск дна (закрывает камеру ремня снизу)
 
 module motor_holes(depth) {
     cylinder(d = 23, h = depth);
@@ -71,33 +81,30 @@ module rquad(x0, x1, y0, y1, r0, r1) hull() for (y = [y0, y1]) { s = y == y0 ? 1
 // цилиндр со скруглёнными торцами
 module rcyl(d, h, r) rotate_extrude() hull() { square([0.01, h]); translate([d/2 - r, r]) circle(r, $fn = 24); translate([d/2 - r, h - r]) circle(r, $fn = 24); }
 
-// ================= КОРПУС Hz (крышка + стенки, открыт снизу) =================
+// ================= КОРПУС Hz (крышка + стенки, вращается; стоит на палубе) =================
 module box2d() offset(r = BOX_R) offset(delta = -BOX_R) hull() { circle(r = R_BOX); translate([MOT_X - MOT/2 - MOT_M, -MOT/2 - MOT_M]) square(MOT + 2*MOT_M);
     translate([PACK_X0 - WALL - 1, -PACK_Y - WALL]) square([PACK_X1 - PACK_X0 + WALL + 1, 2*(PACK_Y + WALL)]); }
+ALI_BOLTS = [[30, 22], [30, -22], [-30, 22], [-30, -22]];   // М4: алидада -> верх корпуса
+HUB_D = 48;                                             // ступица подшипников 2x6806 (вращается на неподвижной трубе)
 module housing() {
     zt = H_BOX - TOP_T;
     difference() {
         union() {
             rprism(H_BOX, TOP_R, 0, true) box2d();                                               // печать верхом на стол
-            translate([0, 0, zt - 16]) cylinder(d = 46, h = 16);                              // хомут трубы
-            translate([0, 0, H_BOX]) cylinder(d = 34, h = GAP);                                // упор внутр. кольца 6806
+            cylinder(d = HUB_D, h = H_BOX);                                                       // ступица
         }
-        translate([0, 0, -0.01]) linear_extrude(zt + 0.01) offset(-WALL) box2d();
-        translate([0, 0, -1]) cylinder(d = T_OD + 0.25, h = H_BOX + 5);                       // труба оси
-        for (a = [90, 270]) rotate(a) translate([0, 0, zt - 8]) rotate([0, 90, 0]) {        // 2 x М4 зажим трубы
-            cylinder(d = 4.4, h = 30); translate([0, 0, 18]) rotate([0, 0, 30]) hex(7, 3.4);
-            translate([-3.5, -4, 18]) cube([20, 8, 3.4]); }
-        translate([MOT_X, 0, zt - 1]) motor_holes(TOP_T + 2);
-        // нуль Hz: TCRT5000 снизу крышки, окно 11x7 смотрит на белую метку барабана (зазор 1 мм)
-        rotate(-60) translate([HZ_D/2 - 12, 0, zt - 1]) translate([-5.5, -3.5, 0]) cube([11, 7, TOP_T + 2]);
-        rotate(-60) translate([HZ_D/2 - 12 - 22, 0, zt - 1]) cylinder(d = 3.2, h = 6);                  // винт М3 модуля
+        difference() { translate([0, 0, -0.01]) linear_extrude(zt + 0.01) offset(-WALL) box2d(); cylinder(d = HUB_D, h = H_BOX); }
+        translate([0, 0, -1]) cylinder(d = T_OD + 1.5, h = H_BOX + 2);                        // труба (неподвижна), зазор
+        translate([0, 0, -0.01]) cylinder(d = BH_OD, h = BH_W);                               // нижний 6806
+        translate([0, 0, H_BOX - BH_W]) cylinder(d = BH_OD, h = BH_W + 0.01);                // верхний 6806 (сверху держит алидада)
+        for (p = ALI_BOLTS) translate([p[0], p[1], zt - 0.01]) { cylinder(d = 4.4, h = TOP_T + 5); rotate([0, 0, 30]) hex(7, 4); }   // М4 алидады, гайки в крышке снизу
+        translate([45, 0, zt - 1]) cylinder(d = 14, h = TOP_T + 2);                           // провода -> правая башня (вращаются вместе)
         // питание на стенке -Y: выключатель KCD1 21x15, гнездо DC 5,5/2,1 (зарядка 12,6 В) Ø8
-        translate([-12, -R_BOX - 1, 4]) cube([21, 12, 15]);
-        translate([-30, -54, 12]) rotate([90, 0, 0]) cylinder(d = 8.2, h = 12);
-        // индикатор заряда 3S (4 светодиода): окно 30x6 на стенке отсека (+Y), модуль на клей изнутри
-        translate([-70, 49.6, 9]) rotate(15) translate([-15, -5, 0]) cube([30, 10, 6]);   // (по скошенной стенке)
+        translate([-12, -R_BOX - 1, 5]) cube([21, 12, 15]);
+        translate([-30, -54, 13]) rotate([90, 0, 0]) cylinder(d = 8.2, h = 12);
+        translate([-70, 49.6, 10]) rotate(15) translate([-15, -5, 0]) cube([30, 10, 6]);   // индикатор заряда 3S (скошенная стенка)
         translate([-58, 36, H_BOX - 4]) cylinder(d = 15.5, h = 5);                           // пузырёк Ø15
-        for (y = [-14:7:14]) translate([MOT_X + MOT/2, y, 8]) cube([10, 3, H_BOX - 16]);     // вентиляция
+        for (y = [-14:7:14]) translate([MOT_X + MOT/2 + 2, y, 8]) cube([10, 3, H_BOX - 16]); // вентиляция мотора
     }
     intersection() {
         for (p = boss_pts()) translate([p[0], p[1], 0]) difference() { cylinder(d = 8, h = 10); translate([0, 0, -1]) cylinder(d = 2.8, h = 9); }
@@ -105,55 +112,61 @@ module housing() {
     }
 }
 function boss_pts() = [[PACK_X0 + 4, PACK_Y - 0.5], [PACK_X0 + 4, -PACK_Y + 0.5], [PACK_X1 - 4, PACK_Y + WALL + 3 - 6], [PACK_X1 - 4, -PACK_Y - WALL - 3 + 6],
-                       [0, R_BOX - 6], [28, -R_BOX + 9], [62, 36], [62, -36]];
+                       [0, R_BOX - 6], [28, -R_BOX + 9], [MOT_X - 6, MOT/2 + 7], [MOT_X - 6, -MOT/2 - 7]];
 
-// ================= ДНО: ложементы банок, 3 конуса, отвес, гайка штатива 1/4" =================
-// Печать плоско. Банки — на 2 ложементах + двусторонний скотч/вспененная лента, сверху прижимает крышка корпуса.
+// ================= ПАЛУБА (вращается): банки и мотор Hz сверху, под ней — закрытая камера ремня =================
+// Печать верхом на стол (юбкой вверх). Мотор Hz стоит фланцем на палубе, вал вниз, шкив 16T — в камере.
+Z_P0 = BASE_T + P_HUB; Z_DECK = Z_P0 + P_T + DECK_GAP;   // (от низа дна) низ зубьев шкива, низ палубы
+SKIRT_H = Z_DECK - BASE_T - 1;                           // юбка до дна с зазором 1 мм
+TCRT_A = -60; TCRT_R = 40;                               // нуль Hz: TCRT5000 смотрит вниз на белую метку неподвижного шкива
+module deck() {
+    difference() {
+        union() {
+            rprism(DECK_T, 1.2, 0) hull() { box2d(); circle(r = SKIRT_R, $fn = 180); }               // палуба накрывает камеру ремня целиком
+            translate([0, 0, DECK_T - 0.01]) linear_extrude(2) difference() {                    // буртик-фиксатор корпуса
+                offset(delta = -WALL - 0.25) box2d(); offset(delta = -WALL - 2) box2d();
+                for (p = boss_pts()) translate(p) circle(d = 9); circle(d = HUB_D + 1);
+                translate([MOT_X - MOT/2 - 3, -MOT/2 - 3]) square([MOT + 12, MOT + 6]); }             // без буртика у мотора (сдвиг ±2)
+            for (y = [-CELL_L/2 + 12, CELL_L/2 - 12]) translate([PACK_X0, y - 4, DECK_T - 0.01]) difference() {      // ложементы банок
+                cube([PACK_X1 - PACK_X0, 8, CELL_D/2 - 4]);
+                for (i = [0:N_CELL - 1]) translate([CELL_D/2 + i*(CELL_D + 1), -1, CELL_D/2 + 0.6]) rotate([-90, 0, 0]) cylinder(d = CELL_D + 0.6, h = 10);
+            }
+            translate([0, 0, -SKIRT_H]) difference() { cylinder(r = SKIRT_R, h = SKIRT_H + 0.01, $fn = 180); translate([0, 0, -1]) cylinder(r = SKIRT_R - 2.5, h = SKIRT_H + 2, $fn = 180); }   // юбка
+        }
+        translate([0, 0, -SKIRT_H - 1]) cylinder(d = 37, h = SKIRT_H + DECK_T + 5);              // проставка оси (неподвижна)
+        hull() for (dx = [-2, 2]) translate([MOT_X + dx, 0, -1]) cylinder(d = 23, h = DECK_T + 2);     // бобышка мотора, ступица шкива
+        for (x = [-15.5, 15.5], y = [-15.5, 15.5]) hull() for (dx = [-2, 2]) translate([MOT_X + x + dx, y, -1]) cylinder(d = 3.4, h = DECK_T + 2);  // пазы М3: натяжение ремня
+        rotate(TCRT_A) { translate([TCRT_R - 3.5, -6, -1]) cube([7, 12, DECK_T + 2]);            // окно: датчик TCRT5000 (модуль сверху палубы) смотрит вниз на метку
+                         translate([TCRT_R + 20, 0, -1]) cylinder(d = 3.2, h = DECK_T + 2); }      // винт модуля
+        for (p = boss_pts()) translate([p[0], p[1], -1]) cylinder(d = 3.4, h = DECK_T + 2);       // М3 к корпусу
+        for (x = [-15:8:30]) translate([x, 30, -1]) cube([3, 22, DECK_T + 2]);                   // вентиляция (BMS)
+    }
+}
+// ================= ДНО (неподвижно): 3 ножки, шкив GT2 188T, гнездо оси-трубы, отвес, гайка штатива 1/4" =================
+// Печать плоско. Труба 30x2 вставляется в гнездо и зажимается 2 винтами М3 (латунные вставки в ступице шкива).
+module gt2_ring(n, h) difference() {                       // зубчатый венец GT2 (2 мм): канавки R0,6 на глубину 0,75
+    cylinder(d = GT2_OD, h = h, $fn = 4*n);
+    for (k = [0:n - 1]) rotate(360*k/n) translate([GT2_OD/2 + 0.15, 0, -1]) cylinder(r = 0.6, h = h + 2, $fn = 12);
+}
 module base() {
     difference() {
         union() {
-            rprism(BASE_T, 0, 2, false, true) box2d();                                         // заподлицо с корпусом, низ скруглён
-            for (f = FEET) rprism(BASE_T, 2, 1, false, true) hull() { translate([f[0], f[1]]) circle(d = 24); translate([f[0]*0.7, f[1]*0.7]) circle(d = 30); }
+            rprism(BASE_T, 0, 2, false, true) union() { circle(r = BASE_R, $fn = 180); for (f = FEET) hull() { translate(f) circle(d = 26); translate(f*0.8) circle(d = 36); } }
             for (f = FEET) translate([f[0], f[1], -FOOT_BOSS]) rprism(FOOT_BOSS + 0.01, 0, 1.5, false, true) circle(d = 22);
-            translate([0, 0, BASE_T - 0.01]) linear_extrude(2) difference() {                    // буртик-фиксатор корпуса
-                offset(delta = -WALL - 0.25) box2d(); offset(delta = -WALL - 2) box2d();
-                for (p = boss_pts()) translate(p) circle(d = 9); }
-            for (y = [-CELL_L/2 + 12, CELL_L/2 - 12]) translate([PACK_X0, y - 4, BASE_T - 0.01]) difference() {      // ложементы
-                cube([PACK_X1 - PACK_X0, 8, CELL_D/2 - 4]);
-                for (i = [0:N_CELL - 1]) translate([PACK_X0*0 + CELL_D/2 + i*(CELL_D + 1), -1, CELL_D/2 + 0.6]) rotate([-90, 0, 0]) cylinder(d = CELL_D + 0.6, h = 10);
-            }
+            translate([0, 0, BASE_T - 0.01]) cylinder(d = GT2_OD + 4, h = P_HUB + 0.01, $fn = 180);        // ступица шкива = нижняя реборда
+            translate([0, 0, Z_P0]) gt2_ring(GT2_N, P_T);                                                   // зубья под ремень 6 мм
+            translate([0, 0, Z_P0 + P_T - 0.01]) cylinder(d = GT2_OD + 3, h = 1, $fn = 180);               // верхняя реборда
         }
-        for (p = boss_pts()) translate([p[0], p[1], -1]) cylinder(d = 3.4, h = BASE_T + 2);    // М3 снизу (винт с полукруглой головкой)
-        translate([0, 0, -1]) cylinder(d = 16, h = BASE_T + 2);                                // ОТВЕС: луч вниз по оси
-        translate([42, 0, -1]) cylinder(d = 6.8, h = BASE_T + 2);                              // штатив 1/4"
-        translate([42, 0, BASE_T - 4]) hex(11.2, 5);
+        translate([0, 0, 1.5]) cylinder(d = T_OD + 0.25, h = 50);                               // гнездо трубы
+        translate([0, 0, -1]) cylinder(d = 16, h = 10);                                          // ОТВЕС: луч вниз по оси
+        for (a = [90, 270]) rotate(a) translate([0, 0, BASE_T + P_HUB/2]) rotate([0, 90, 0]) cylinder(d = 4.2, h = 70);   // 2x М3 (вставки) — зажим трубы
+        translate([42, 0, -1]) cylinder(d = 6.8, h = BASE_T + 2); translate([42, 0, -0.01]) hex(11.2, 5);   // штатив 1/4"
         for (f = FEET) translate([f[0], f[1], -FOOT_BOSS - 1]) { cylinder(d = 8.5, h = 20); hex(13.2, 7.5); }
-        for (x = [-15:8:30]) translate([x, 30, -1]) cube([3, 22, BASE_T + 2]);                 // вентиляция (BMS)
+        rotate(TCRT_A) translate([TCRT_R - 7, -2, Z_P0 + P_T + 1 - 0.6]) cube([14, 4, 0.61]);     // метка нуля Hz (белая, AMS) на верхней реборде
     }
 }
-
-// ================= Hz-БАРАБАН (2 x 6806 на трубе) =================
-module hz_drum() {
-    difference() {
-        rcyl(HZ_D, HZ_H, 1.5);
-        translate([0, 0, -0.01]) cylinder(d = BH_OD, h = BH_W);
-        translate([0, 0, HZ_H - BH_W]) cylinder(d = BH_OD, h = BH_W + 0.01);
-        translate([0, 0, -1]) cylinder(d = 36, h = HZ_H + 2);
-        rotate(HZ_A0) helix_groove(HZ_D/2, HZ_TURNS, HZ_G0);
-        // КАССЕТА ШНУРА (сверху, без инструмента). A: узел с бусиной Ø≤4,5 — в карман, шнур — в прорезь 1,4.
-        rotate(HZ_A0) { translate([CORD_R, 0, HZ_G0 - 2]) cylinder(d = 5, h = HZ_H); translate([CORD_R - 1, -0.7, HZ_G0 - 0.7]) cube([10, 1.4, HZ_H]); }
-        // B (3,5 витка — напротив A): прорезь + дуговой канал под пружину растяжения Ø≤6 (постоянное натяжение, выбирает вытяжку)
-        rotate(HZ_A0 + 180) {
-            translate([CORD_R - 1, -0.7, HZ_G0 + PITCH*HZ_TURNS - 0.7]) cube([10, 1.4, HZ_H]);
-            translate([0, 0, HZ_G0 + PITCH*HZ_TURNS - 3.5]) rotate_extrude(angle = SPR_A, $fn = 180) translate([CORD_R - 3.5, 0]) square([7, HZ_H]);
-        }
-        for (p = ALI_BOLTS) translate([p[0], p[1], -1]) { cylinder(d = 4.4, h = HZ_H + 2); rotate([0, 0, 30]) hex(7, 4.5); }
-        rotate(-60) translate([HZ_D/2 - 19, -2, -0.01]) cube([14, 4, 0.6]);                   // метка нуля Hz: белая вставка (AMS) или белая краска
-        for (a = [30, 150, 210, 330]) rotate(a) translate([40, 0, HZ_G0 + 6]) cylinder(d = 18, h = HZ_H);
-    }
-    rotate(HZ_A0 + 180 + SPR_A - 4) translate([CORD_R, 0, HZ_G0 + PITCH*HZ_TURNS - 3.6]) cylinder(d = 2.8, h = HZ_H - HZ_G0 - PITCH*HZ_TURNS + 2.6, $fn = 16);  // крючок пружины
-}
-ALI_BOLTS = [[30, 22], [30, -22], [-30, 22], [-30, -22]];
+// проставка на трубе: держит внутреннее кольцо нижнего 6806 над шкивом (неподвижна)
+module spacer() difference() { rcyl(36, Z_DECK + DECK_T - (Z_P0 + P_T + 1), 0.8); translate([0, 0, -1]) cylinder(d = T_OD + 0.25, h = 30); }
 
 // ================= АЛИДАДА: две закрытые башни-вилка (одна деталь = соосные подшипники V) =================
 // башня в плане: s = -1 левая (мотор V), +1 правая (электроника); наружные углы R8, к голове R3
@@ -174,11 +187,9 @@ module alidade() {
         for (s = [-1, 1]) translate([0, 0, 3]) linear_extrude(POD_H) cav2d(s);
         // 608 во внутренних стенках: гнездо со стороны полости, буртик 1 мм к голове
         for (s = [-1, 1]) translate([s*(POD_IN + POD_WALL + 0.01), 0, AXLE_Z]) rotate([0, -s*90, 0]) { cylinder(d = B_OD, h = B_W); cylinder(d = 14, h = POD_WALL + 2); }
-        // мотор V: фланец на внутренней перегородке левой башни (вал к барабану V)
-        translate([-POD_IN - POD_WALL - V_W - 6 - 0.01, 0, mz]) rotate([0, -90, 0]) motor_holes(5);
-        // центр: труба/хомут, провода из трубы -> в правую башню (канал в основании)
+        // центр: хомут трубы; провода из корпуса -> правая башня (вращаются вместе, ось без проводов)
         translate([0, 0, -1]) cylinder(d = 40, h = 10);
-        translate([0, -7, 1]) cube([POD_IN + POD_WALL + 3, 14, 4]);
+        translate([45, 0, -1]) cylinder(d = 14, h = 6);
         // кабели головы (лазер, камера CSI, MPU6050) — щель во внутренней стенке правой башни под осью
         translate([POD_IN - 1, -11, AXLE_Z - 30]) cube([POD_WALL + 2, 22, 7]);
         for (p = ALI_BOLTS) translate([p[0], p[1], -1]) { cylinder(d = 4.4, h = 20); translate([0, 0, 6]) cylinder(d = 8, h = 20); }
@@ -186,17 +197,16 @@ module alidade() {
         for (dy = [-24.5, 24.5], dz = [12, 70]) translate([POD_RX - 4, dy, dz]) rotate([0, 90, 0]) cylinder(d = 2.4, h = 6);
         for (y = [-20:8:20]) translate([POD_RX - 3, y, POD_H - 30]) cube([4, 3, 20]);           // вентиляция
     }
-    // перегородка мотора V (левая башня)
-    difference() {
-        translate([-POD_IN - POD_WALL - V_W - 6, -POD_Y + 1.5, 1]) cube([4, 2*POD_Y - 3, mz + MOT/2 + 2]);
-        translate([-POD_IN - POD_WALL - V_W - 7, 0, mz]) rotate([0, 90, 0]) motor_holes(7);
+    // направляющие картриджа V (левая башня): наружные — во всю высоту, внутренние — ниже барабана V
+    for (sy = [-1, 1]) {
+        translate([VC_X0 - 2.2, sy > 0 ? POD_Y - 2.4 - 4 : -POD_Y + 2.4, 3]) cube([2.2, 4, POD_H - 3]);
+        translate([VC_X0 + VC_T + 0.4, sy > 0 ? POD_Y - 2.4 - 4 : -POD_Y + 2.4, 3]) cube([2.2, 4, AXLE_Z - V_D/2 - 8]);
     }
     // стойки винтов крышек М3 (с косынкой к стенке — печать без поддержек)
     intersection() {
         for (s = [-1, 1], p = lid_pts(s)) difference() {
             hull() { translate([p[0], p[1], POD_H - 8]) cylinder(d = 9, h = 8); translate([p[0], sign(p[1])*(POD_Y - 2.6), POD_H - 18]) cylinder(d = 9, h = 0.01); }
-            if (s > 0) translate([p[0], p[1], POD_H - 11]) cylinder(d = 2.6, h = 12);                      // правая: винты М3
-            else translate([p[0], p[1], POD_H - 3.2]) cylinder(d = 6.3, h = 3.3);                          // левая (шнур V): магниты 6x3
+            translate([p[0], p[1], POD_H - 11]) cylinder(d = 2.6, h = 12);                                 // винты М3 (саморез 2,9 или вставка)
         }
         linear_extrude(POD_H) for (s = [-1, 1]) tower2d(s);
     }
@@ -206,9 +216,9 @@ module pod_lid(s) difference() {
     union() {
         rprism(LID_T, 3, 0, true) tower2d(s);
         translate([0, 0, -2.5]) linear_extrude(2.51) difference() { offset(delta = -0.25) cav2d(s); offset(delta = -2.05) cav2d(s); for (p = lid_pts(s)) translate(p) circle(d = 11); }
+        if (s < 0) translate([VC_X0, -20, -(POD_H - VC_H - 3) - 0.01]) cube([VC_T, 40, POD_H - VC_H - 3 + 0.02]);   // прижим картриджа V
     }
-    for (p = lid_pts(s)) if (s > 0) translate([p[0], p[1], -4]) { cylinder(d = 3.2, h = 10); translate([0, 0, LID_T + 4 - 1.8]) cylinder(d = 6, h = 2); }
-                         else translate([p[0], p[1], -0.01]) cylinder(d = 6.3, h = 3.2);                     // магниты 6x3: крышка снимается рукой
+    for (p = lid_pts(s)) translate([p[0], p[1], -4]) { cylinder(d = 3.2, h = 10); translate([0, 0, LID_T + 4 - 1.8]) cylinder(d = 6, h = 2); }
 }
 
 // ================= ГОЛОВА: дальномер + камера + MPU6050, окно из оргстекла 2 мм =================
@@ -250,16 +260,41 @@ module head_lid() difference() {
     for (p = head_pts()) translate([p[0], p[1], -3]) { cylinder(d = 2.8, h = 6); translate([0, 0, 3 + 2.4 - 1.4]) cylinder(d = 5.5, h = 2); }
 }
 
-// ================= V-БАРАБАН (на болте М8 левой цапфы, зажат через внутреннее кольцо 608) =================
+// ================= V: СМЕННЫЙ КАРТРИДЖ (рамка + мотор + барабан + шнур, натянут заранее на столе) =================
+// Цапфа головы: шпилька М8 (в гайку головы) -> внутреннее кольцо 608 -> конус v_hub (контргайка М8 внутри) -> конус барабана -> гайка-барашек.
+// Замена: снять крышку башни (4 винта) -> открутить барашек -> вынуть картридж вверх по направляющим -> вставить новый -> барашек -> крышка.
+// Конус 1:4 центрирует барабан без люфта; рамка стоит в направляющих, сверху прижата крышкой; мотор V — разъём JST-XH 4.
+VC_X0 = -POD_IN - POD_WALL - V_W - 6; VC_T = 4;         // рамка картриджа (на месте бывшей перегородки)
+VC_H = POD_H - 6;                                       // высота рамки (над полом башни 3 мм, под крышкой — прижим)
+VCONE = [26, 20.5, 10];                                 // конус: Ø у подшипника, Ø снаружи, длина
+module v_cart() {
+    mz = AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3); w = 2*(POD_Y - 2.4) - 0.6;
+    difference() {
+        translate([0, -w/2, 3]) cube([VC_T, w, VC_H - 3]);
+        translate([-1, 0, mz]) rotate([0, 90, 0]) motor_holes(VC_T + 2);
+        translate([-1, 0, AXLE_Z]) rotate([0, 90, 0]) cylinder(d = 30, h = VC_T + 2);   // окно барашка
+        translate([-1, 0, VC_H - 6]) rotate([0, 90, 0]) cylinder(d = 14, h = VC_T + 2);  // ручка-проём: вынимать за него
+        translate([-1, -w/2 + 4, 8]) cube([VC_T + 2, 8, 12]);                             // разъём мотора
+    }
+}
+module v_hub() difference() {
+    cylinder(d1 = VCONE[0], d2 = VCONE[1], h = VCONE[2]);
+    translate([0, 0, -1]) cylinder(d = 8.4, h = VCONE[2] + 2);
+    translate([0, 0, VCONE[2] - 6.5]) hex(13.2, 7);                                    // контргайка М8: прижимает конус к кольцу 608
+}
 module v_drum() difference() {
     rcyl(V_D, V_W, 1.2);
-    translate([0, 0, -1]) cylinder(d = 8.4, h = V_W + 2);
-    translate([0, 0, V_W - 5]) hex(13.2, 6);                                                    // головка болта
+    translate([0, 0, -0.01]) cylinder(d1 = VCONE[0] + 0.3, d2 = VCONE[1] + 0.3, h = VCONE[2]);   // конусное гнездо
+    translate([0, 0, -1]) cylinder(d = 8.6, h = V_W + 2);
     helix_groove(V_D/2, V_TURNS, 3);
     for (k = [0, 1]) { z = 3 + (k ? PITCH*V_TURNS : 0); a = k ? -360*V_TURNS : 0;
         rotate(a) translate([V_D/2 - 10, 0, z]) rotate([0, 90, 0]) cylinder(d = 2, h = 20);
         rotate(a) translate([V_D/2 - 16, -3, -1]) cube([6, 6, V_W + 2]); }
-    for (a = [0:60:300]) rotate(a) translate([20, 0, -1]) cylinder(d = 10, h = V_W + 2);
+    for (a = [0:60:300]) rotate(a) translate([22, 0, -1]) cylinder(d = 9, h = V_W + 2);
+}
+module v_knob() difference() {                         // гайка-барашек М8 (гайка вплавить/вклеить)
+    union() { cylinder(d = 22, h = 7, $fn = 12); cylinder(d = 14, h = 10); }
+    translate([0, 0, -1]) cylinder(d = 8.4, h = 12); translate([0, 0, 3]) hex(13.2, 8);
 }
 
 // ================= ХОМУТ трубы над барабаном (преднатяг 6806) =================
@@ -276,38 +311,57 @@ module foot() difference() {
 
 // ================= СБОРКА =================
 Z_BASE = FOOT_H - 8 + FOOT_BOSS;                        // низ дна над полом (конус накручен на 8 мм)
-Z_DRUM = Z_BASE + BASE_T + H_BOX + GAP;                 // низ Hz-барабана
-Z_TOP = Z_DRUM + HZ_H;                                  // верх барабана (основание алидады)
-module assembly(v = 0) {
+Z_DK = Z_BASE + Z_DECK;                                 // низ палубы
+Z_HS = Z_DK + DECK_T;                                   // верх палубы = низ корпуса
+Z_TOP = Z_HS + H_BOX;                                   // верх корпуса = низ алидады
+module assembly(v = 0, hz = 0) {
     color("dimgray") translate([0, 0, Z_BASE]) base();
-    color("gray") translate([0, 0, Z_BASE + BASE_T]) housing();
-    for (i = [0:N_CELL - 1]) color("royalblue") translate([PACK_X0 + CELL_D/2 + i*(CELL_D + 1), -CELL_L/2, Z_BASE + BASE_T + CELL_D/2 + 0.6]) rotate([-90, 0, 0]) cylinder(d = CELL_D, h = CELL_L);
     for (f = FEET) color("black") translate([f[0], f[1], Z_BASE - FOOT_BOSS + 8]) mirror([0, 0, 1]) foot();
-    color("black") translate([MOT_X - MOT/2, -MOT/2, Z_BASE + BASE_T + H_BOX - TOP_T - MOT_L]) cube([MOT, MOT, MOT_L]);
-    color("silver") translate([0, 0, Z_BASE + BASE_T + H_BOX - TOP_T - 16]) difference() { cylinder(d = T_OD, h = 16 + TOP_T + GAP + HZ_H + 8); translate([0, 0, -1]) cylinder(d = T_ID, h = 99); }
-    color("orange") translate([0, 0, Z_DRUM]) hz_drum();
-    translate([0, 0, Z_TOP]) {
-        color("silver") collar();
-        color("steelblue") alidade();
-        for (s = [-1, 1]) color("steelblue", 0.6) translate([0, 0, POD_H]) pod_lid(s);
-        translate([0, 0, AXLE_Z]) rotate([v, 0, 0]) { color("white") head(); color("white") translate([0, 0, HEAD_Z]) head_lid(); }
-        color("orange") translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum();
-        color("black") translate([-POD_IN - POD_WALL - V_W - 6 - MOT_L, -MOT/2, AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3) - MOT/2]) cube([MOT_L, MOT, MOT]);
+    color("silver") translate([0, 0, Z_BASE + 1.5]) difference() { cylinder(d = T_OD, h = Z_TOP + 8 - Z_BASE - 1.5); translate([0, 0, -1]) cylinder(d = T_ID, h = 200); }
+    color("silver") translate([0, 0, Z_BASE + Z_P0 + P_T + 1]) spacer();
+    rotate(hz) {
+        color("gray") translate([0, 0, Z_DK]) deck();
+        color("gray") translate([0, 0, Z_HS]) housing();
+        for (i = [0:N_CELL - 1]) color("royalblue") translate([PACK_X0 + CELL_D/2 + i*(CELL_D + 1), -CELL_L/2, Z_HS + CELL_D/2 + 0.6]) rotate([-90, 0, 0]) cylinder(d = CELL_D, h = CELL_L);
+        color("black") translate([MOT_X - MOT/2, -MOT/2, Z_HS]) cube([MOT, MOT, MOT_L]);
+        color("goldenrod") translate([MOT_X, 0, Z_BASE + Z_P0 - 1]) cylinder(d = 13, h = P_T + 2);       // шкив 16T
+        color("darkslategray") translate([0, 0, Z_BASE + Z_P0 + 1]) linear_extrude(6) belt2d();
+        translate([0, 0, Z_TOP]) {
+            color("silver") collar();
+            color("steelblue") alidade();
+            for (s = [-1, 1]) color("steelblue", 0.6) translate([0, 0, POD_H]) pod_lid(s);
+            translate([0, 0, AXLE_Z]) rotate([v, 0, 0]) { color("white") head(); color("white") translate([0, 0, HEAD_Z]) head_lid(); }
+            color("orange") translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum();
+            color("silver") translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_hub();
+            color("dimgray") translate([VC_X0 - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob();
+            color("tan") translate([VC_X0, 0, 0]) v_cart();
+            color("black") translate([VC_X0 - MOT_L, -MOT/2, AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3) - MOT/2]) cube([MOT_L, MOT, MOT]);
+        }
     }
 }
-echo(BEAM_H = Z_TOP + AXLE_Z, Z_BASE = Z_BASE, POD_H = POD_H, TOTAL_H = Z_TOP + POD_H + LID_T);
+module belt2d() difference() {                         // ремень (для картинки): огибающая двух шкивов
+    hull() { circle(d = GT2_PD + 1.5, $fn = 120); translate([MOT_X, 0]) circle(d = 16*2/PI + 1.5); }
+    hull() { circle(d = GT2_PD - 0.5, $fn = 120); translate([MOT_X, 0]) circle(d = 16*2/PI - 0.5); }
+}
+echo(BEAM_H = Z_TOP + AXLE_Z, Z_BASE = Z_BASE, Z_DK = Z_DK, Z_TOP = Z_TOP, POD_H = POD_H, TOTAL_H = Z_TOP + POD_H + LID_T, SHAFT_END = Z_HS - MOT_SHAFT, BASE_TOP = Z_BASE + BASE_T);
 
 if (part == "base") base();
+else if (part == "spacer") spacer();
+else if (part == "deck") deck();
 else if (part == "housing") housing();
-else if (part == "hz_drum") hz_drum();
 else if (part == "alidade") alidade();
 else if (part == "pod_lid_l") pod_lid(-1);
 else if (part == "pod_lid_r") pod_lid(1);
 else if (part == "head") head();
 else if (part == "head_lid") head_lid();
+else if (part == "v_cart") v_cart();
+else if (part == "v_hub") v_hub();
 else if (part == "v_drum") v_drum();
+else if (part == "v_knob") v_knob();
 else if (part == "collar") collar();
 else if (part == "foot") foot();
 else if (part == "down") assembly(-90);
+else if (part == "vis_belt") linear_extrude(6) belt2d();                     // только для картинок
+else if (part == "vis_motor") { translate([MOT_X - MOT/2, -MOT/2, 0]) cube([MOT, MOT, MOT_L]); translate([MOT_X, 0, -MOT_SHAFT]) cylinder(d = 5, h = MOT_SHAFT); translate([MOT_X, 0, -(Z_HS - Z_BASE - Z_P0) - 1]) cylinder(d = 13, h = P_T + 2); }
 else if (part == "none") {}
 else assembly();
