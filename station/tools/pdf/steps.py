@@ -78,7 +78,8 @@ def parts():
     P["motorV"] = (box([VC_X0 - MOT_L, -MOT/2, Z_TOP + MZV - MOT/2], [VC_X0, MOT/2, Z_TOP + MZV + MOT/2]), "black")
     P["v_drum"] = (mv(ry_m90(stl("v_drum")), [-33, 0, Z_TOP + AXLE]), "orange")
     P["v_hub"] = (mv(ry_m90(stl("v_hub")), [-33, 0, Z_TOP + AXLE]), "steel")
-    P["v_knob"] = (mv(ry_m90(stl("v_knob")), [VC_X0 - 1, 0, Z_TOP + AXLE]), "dark")
+    P["v_knob"] = (mv(ry_m90(stl("v_knob")), [-47, 0, Z_TOP + AXLE]), "dark")
+    P["stud"] = (mv(cyl(4, 60, 20, axis="x"), [-74, 0, Z_TOP + AXLE]), "gold")
     P["lid_l"] = (mv(stl("pod_lid_l"), [0, 0, Z_TOP + POD_H]), "blue")
     P["lid_r"] = (mv(stl("pod_lid_r"), [0, 0, Z_TOP + POD_H]), "blue")
     return P
@@ -142,14 +143,15 @@ render("step5", P, ["head", "head_lid"], ghost=["alidade", "housing", "b608", "d
        off={"head": (0, -150, 20), "head_lid": (0, -150, 70)},
        arrows=[((0, -110, 175), (0, -40, 160)), ((60, 0, 156), (40, 0, 156)), ((-75, 0, 156), (-45, 0, 156))],
        labels=[((30, -150, 255), "крышка + оргстекло 30×33×2"), ((30, -170, 150), "голова: дальномер, камера, инклинометр"),
-               ((62, 0, 165), "болт М8×20"), ((-140, 0, 170), "шпилька М8×60 → 608 → конус")],
+               ((62, 0, 165), "болт М8×16"), ((-140, 0, 170), "шпилька М8×60 → 608 → конус")],
        view=(18, -50), lim=((-120, -160, 80), (120, 80, 280)))
 # 6. картридж V
-render("step6", P, ["v_cart", "motorV", "v_drum", "v_hub", "v_knob"], ghost=["alidade", "head", "head_lid", "housing"],
-       off={"v_cart": (0, 0, 150), "motorV": (0, 0, 150), "v_drum": (0, 0, 150), "v_knob": (-40, 0, 0), "v_hub": (15, 0, 0)},
-       arrows=[((-60, 0, 380), (-60, 0, 290)), ((-120, 0, 156), (-75, 0, 156))],
-       labels=[((-150, -60, 370), "картридж: рамка + мотор V + барабан + шнур"), ((-110, -30, 135), "барашек М8"),
-               ((10, -40, 95), "конус v_hub")], view=(16, -135), lim=((-170, -100, 60), (90, 100, 400)))
+render("step6", P, ["v_cart", "motorV", "v_drum", "v_hub", "v_knob", "stud"], ghost=["alidade", "head", "head_lid", "housing"],
+       off={"v_cart": (0, 0, 150), "motorV": (0, 0, 150), "v_drum": (0, 0, 150), "v_hub": (0, 0, 150), "v_knob": (-25, 0, 0), "stud": (-75, 0, 0)},
+       arrows=[((-60, 0, 380), (-60, 0, 290)), ((-150, 0, 168), (-95, 0, 168))],
+       labels=[((-150, -60, 380), "1. узел V сверху: рамка + мотор + барабан + конус"), ((-200, -20, 185), "2. шпилька М8×60 снаружи, через Ø10"),
+               ((-95, -30, 132), "3. барашек — до барабана")], view=(16, -135), lim=((-190, -100, 60), (90, 100, 400)))
+
 # 7. крышки и итог
 render("step7", P, ["lid_l", "lid_r", "alidade", "head", "head_lid", "housing", "deck", "base", "v_drum", "v_cart", "collar"] + FEETK,
        off={"lid_l": (0, 0, 60), "lid_r": (0, 0, 60)},

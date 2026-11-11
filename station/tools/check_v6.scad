@@ -7,10 +7,19 @@ module rot() { translate([0, 0, Z_DK]) deck(); translate([0, 0, Z_HS]) housing()
     translate([MOT_X, 0, Z_HS - MOT_SHAFT]) cylinder(d = 5, h = MOT_SHAFT); translate([MOT_X, 0, Z_BASE + Z_P0 - 1]) cylinder(d = 16, h = P_T + 2); }
 module cells() for (i = [0:N_CELL - 1]) translate([PACK_X0 + CELL_D/2 + i*(CELL_D + 1), -CELL_L/2 - 2, Z_HS + CELL_D/2 + 0.6]) rotate([-90, 0, 0]) cylinder(d = CELL_D, h = CELL_L + 4);
 module vset() { translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) { v_drum(); v_hub(); }
-    translate([VC_X0 - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob(); translate([VC_X0 - MOT_L, -MOT/2, mzV - MOT/2]) cube([MOT_L, MOT, MOT]); }
+    translate([-POD_IN - POD_WALL - 1 - V_W, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob(); translate([VC_X0 - MOT_L, -MOT/2, mzV - MOT/2]) cube([MOT_L, MOT, MOT]); }
 if (t == 1) intersection() { fixed(); for (a = [0:30:330]) rotate(a) rot(); }
 if (t == 2) intersection() { cells(); union() { translate([0, 0, Z_DK]) deck(); translate([0, 0, Z_HS]) housing(); } }
 if (t == 3) intersection() { alidade(); union() { vset(); translate([VC_X0, 0, 0]) v_cart(); } }
-if (t == 4) intersection() { translate([VC_X0, 0, 0]) v_cart(); union() { translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum(); translate([VC_X0 - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob(); } }
+if (t == 4) intersection() { translate([VC_X0, 0, 0]) v_cart(); union() { translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum(); translate([-POD_IN - POD_WALL - 1 - V_W, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob(); } }
 if (t == 5) intersection() { for (dx = [-2, 0, 2]) translate([MOT_X - MOT/2 + dx, -MOT/2, Z_HS + 0.01]) cube([MOT, MOT, MOT_L]); union() { translate([0, 0, Z_DK]) deck(); translate([0, 0, Z_HS]) housing(); } }
 if (t == 6) intersection() { translate([0, 0, Z_TOP]) alidade(); translate([0, 0, Z_HS]) housing(); }
+// --- собираемость (2026-11-11) ---
+module stud() translate([-14, 0, AXLE_Z]) rotate([0, -90, 0]) cylinder(d = 8, h = 60);                  // шпилька М8×60 левой цапфы
+module shaftV(L) translate([VC_X0, 0, mzV]) rotate([0, 90, 0]) cylinder(d = 6, h = L);                  // вал мотора V + втулка 6
+if (t == 7) intersection() { alidade(); stud(); }                                                       // шпилька проходит алидаду (608, отверстие снаружи)
+if (t == 8) intersection() { union() { translate([VC_X0, 0, 0]) v_cart(); translate([VC_X0 - MOT_L, -MOT/2, mzV - MOT/2]) cube([MOT_L, MOT, MOT]); } stud(); }
+if (t == 9) intersection() { alidade(); shaftV(24); }                                                   // вал 24 мм упирается во внутреннюю стенку?
+if (t == 10) intersection() { alidade(); shaftV(18); }                                                  // вал 18 мм
+if (t == 11) intersection() { translate([0, 0, Z_TOP - Z_HS]) alidade(); translate([0, 0, 0]) housing(); translate([86, 0, H_BOX + 0.1]) cylinder(d = 15.5, h = 30); }  // пузырёк виден
+if (t == 12) intersection() { translate([-POD_IN - POD_WALL - 1 - V_W, 0, AXLE_Z]) rotate([0, -90, 0]) v_knob(); translate([-POD_IN - POD_WALL - 1, 0, AXLE_Z]) rotate([0, -90, 0]) v_drum(); }  // барашек касается барабана (должно быть пусто/плоскость)
