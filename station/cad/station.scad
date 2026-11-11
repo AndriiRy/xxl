@@ -22,6 +22,8 @@ SHAFT_R = 3.0; CORD = 0.5; PITCH = 1.2;// латунная втулка 6x0,5 н
 HZ_D = 120;                                             // габарит корпуса по кругу (R_BOX = 66)
 GT2_N = 188; GT2_M = 16;                                // неподвижный шкив 188 зубьев (печать), шкив мотора 16 зубьев -> 1:11,75
 GT2_PD = GT2_N*2/PI; GT2_OD = GT2_PD - 0.508;           // делительный 119,7, наружный 119,2
+PULLEY = "metal";                                       // metal: венец 2x4 мм алюминий/сталь + 2 реборды 1,5 мм (лазер/ЧПУ по DXF) | print: зубья печатаются на дне
+FL_T = 1.5; PL_BOLT_R = 46; PL_BOLTS = 6;               // реборды и болты М3 венца (латунные вставки в ступице дна)
 MOT_X = 70.3;                                           // ось мотора Hz: ремень замкнутый 390 мм (195 зубьев); пазы ±2 мм — натяжение (388…392 мм)
 MOT_SHAFT = 24;                                         // вал мотора от фланца (до 24 мм — без укорачивания)
 // высоты (от низа дна): шкив — зубья на уровне ремня, палуба над шкивом, мотор стоит на палубе валом вниз
@@ -144,29 +146,40 @@ module deck() {
 }
 // ================= ДНО (неподвижно): 3 ножки, шкив GT2 188T, гнездо оси-трубы, отвес, гайка штатива 1/4" =================
 // Печать плоско. Труба 30x2 вставляется в гнездо и зажимается 2 винтами М3 (латунные вставки в ступице шкива).
-module gt2_ring(n, h) difference() {                       // зубчатый венец GT2 (2 мм): канавки R0,6 на глубину 0,75
-    cylinder(d = GT2_OD, h = h, $fn = 4*n);
-    for (k = [0:n - 1]) rotate(360*k/n) translate([GT2_OD/2 + 0.15, 0, -1]) cylinder(r = 0.6, h = h + 2, $fn = 12);
-}
+// профиль впадины GT2 2 мм (Parametric Pulley, droftarts): глубина 0,764, ширина 1,494
+GT2_TOOTH = [[0.747183,-0.5],[0.747183,0],[0.647876,0.037218],[0.598311,0.130528],[0.578556,0.238423],[0.547158,0.343077],[0.504649,0.443762],
+             [0.451556,0.53975],[0.358229,0.636924],[0.2484,0.707276],[0.127259,0.750044],[0,0.76447],[-0.127259,0.750044],[-0.2484,0.707276],
+             [-0.358229,0.636924],[-0.451556,0.53975],[-0.504649,0.443762],[-0.547158,0.343077],[-0.578556,0.238423],[-0.598311,0.130528],
+             [-0.647876,0.037218],[-0.747183,0],[-0.747183,-0.5]];
+module gt2_2d(n) difference() { circle(d = GT2_OD, $fn = 4*n); for (k = [0:n - 1]) rotate(360*k/n) translate([0, -GT2_OD/2]) polygon(GT2_TOOTH); }
+module gt2_ring(n, h) linear_extrude(h) gt2_2d(n);
+// металлический венец (DXF для лазера/ЧПУ): отверстие = труба 30 мм -> венец центрируется самой осью
+module pl_holes() { circle(d = T_OD + 0.25, $fn = 180); for (k = [0:PL_BOLTS - 1]) rotate(360*k/PL_BOLTS + 15) translate([PL_BOLT_R, 0]) circle(d = 3.3, $fn = 24); }
+module gt2_plate_2d() difference() { gt2_2d(GT2_N); pl_holes(); }                    // 2 шт., Al 4 мм (или сталь 4 мм)
+module gt2_flange_2d() difference() { circle(d = GT2_OD + 4, $fn = 360); pl_holes(); } // 2 шт., Al/сталь 1,5 мм; на верхней — белая метка нуля
 module base() {
     difference() {
         union() {
             rprism(BASE_T, 0, 2, false, true) union() { circle(r = BASE_R, $fn = 180); for (f = FEET) hull() { translate(f) circle(d = 26); translate(f*0.8) circle(d = 36); } }
             for (f = FEET) translate([f[0], f[1], -FOOT_BOSS]) rprism(FOOT_BOSS + 0.01, 0, 1.5, false, true) circle(d = 22);
-            translate([0, 0, BASE_T - 0.01]) cylinder(d = GT2_OD + 4, h = P_HUB + 0.01, $fn = 180);        // ступица шкива = нижняя реборда
-            translate([0, 0, Z_P0]) gt2_ring(GT2_N, P_T);                                                   // зубья под ремень 6 мм
-            translate([0, 0, Z_P0 + P_T - 0.01]) cylinder(d = GT2_OD + 3, h = 1, $fn = 180);               // верхняя реборда
+            if (PULLEY == "metal") translate([0, 0, BASE_T - 0.01]) cylinder(d = 2*PL_BOLT_R + 12, h = P_HUB - FL_T + 0.01, $fn = 180);   // ступица под венец
+            else {
+                translate([0, 0, BASE_T - 0.01]) cylinder(d = GT2_OD + 4, h = P_HUB + 0.01, $fn = 180);    // ступица шкива = нижняя реборда
+                translate([0, 0, Z_P0]) gt2_ring(GT2_N, P_T);                                               // зубья под ремень 6 мм
+                translate([0, 0, Z_P0 + P_T - 0.01]) cylinder(d = GT2_OD + 3, h = FL_T, $fn = 180);        // верхняя реборда
+            }
         }
         translate([0, 0, 1.5]) cylinder(d = T_OD + 0.25, h = 50);                               // гнездо трубы
         translate([0, 0, -1]) cylinder(d = 16, h = 10);                                          // ОТВЕС: луч вниз по оси
         for (a = [90, 270]) rotate(a) translate([0, 0, BASE_T + P_HUB/2]) rotate([0, 90, 0]) cylinder(d = 4.2, h = 70);   // 2x М3 (вставки) — зажим трубы
         translate([42, 0, -1]) cylinder(d = 6.8, h = BASE_T + 2); translate([42, 0, -0.01]) hex(11.2, 5);   // штатив 1/4"
         for (f = FEET) translate([f[0], f[1], -FOOT_BOSS - 1]) { cylinder(d = 8.5, h = 20); hex(13.2, 7.5); }
-        rotate(TCRT_A) translate([TCRT_R - 7, -2, Z_P0 + P_T + 1 - 0.6]) cube([14, 4, 0.61]);     // метка нуля Hz (белая, AMS) на верхней реборде
+        if (PULLEY == "metal") for (k = [0:PL_BOLTS - 1]) rotate(360*k/PL_BOLTS + 15) translate([PL_BOLT_R, 0, BASE_T + 1]) cylinder(d = 4.2, h = P_HUB);   // вставки М3
+        else rotate(TCRT_A) translate([TCRT_R - 7, -2, Z_P0 + P_T + FL_T - 0.6]) cube([14, 4, 0.61]);   // метка нуля Hz (белая, AMS) на верхней реборде
     }
 }
 // проставка на трубе: держит внутреннее кольцо нижнего 6806 над шкивом (неподвижна)
-module spacer() difference() { rcyl(36, Z_DECK + DECK_T - (Z_P0 + P_T + 1), 0.8); translate([0, 0, -1]) cylinder(d = T_OD + 0.25, h = 30); }
+module spacer() difference() { rcyl(36, Z_DECK + DECK_T - (Z_P0 + P_T + FL_T), 0.8); translate([0, 0, -1]) cylinder(d = T_OD + 0.25, h = 30); }
 
 // ================= АЛИДАДА: две закрытые башни-вилка (одна деталь = соосные подшипники V) =================
 // башня в плане: s = -1 левая (мотор V), +1 правая (электроника); наружные углы R8, к голове R3
@@ -318,7 +331,8 @@ module assembly(v = 0, hz = 0) {
     color("dimgray") translate([0, 0, Z_BASE]) base();
     for (f = FEET) color("black") translate([f[0], f[1], Z_BASE - FOOT_BOSS + 8]) mirror([0, 0, 1]) foot();
     color("silver") translate([0, 0, Z_BASE + 1.5]) difference() { cylinder(d = T_OD, h = Z_TOP + 8 - Z_BASE - 1.5); translate([0, 0, -1]) cylinder(d = T_ID, h = 200); }
-    color("silver") translate([0, 0, Z_BASE + Z_P0 + P_T + 1]) spacer();
+    color("silver") translate([0, 0, Z_BASE + Z_P0 + P_T + FL_T]) spacer();
+    if (PULLEY == "metal") color("lightsteelblue") translate([0, 0, Z_BASE + Z_P0 - FL_T]) gt2_pulley_metal();
     rotate(hz) {
         color("gray") translate([0, 0, Z_DK]) deck();
         color("gray") translate([0, 0, Z_HS]) housing();
@@ -338,6 +352,9 @@ module assembly(v = 0, hz = 0) {
             color("black") translate([VC_X0 - MOT_L, -MOT/2, AXLE_Z - (V_D/2 + SHAFT_R + CORD + 0.3) - MOT/2]) cube([MOT_L, MOT, MOT]);
         }
     }
+}
+module gt2_pulley_metal() {                              // для сборки/картинок: реборда + 2 венца + реборда
+    linear_extrude(FL_T) gt2_flange_2d(); translate([0, 0, FL_T]) linear_extrude(P_T) gt2_plate_2d(); translate([0, 0, FL_T + P_T]) linear_extrude(FL_T) gt2_flange_2d();
 }
 module belt2d() difference() {                         // ремень (для картинки): огибающая двух шкивов
     hull() { circle(d = GT2_PD + 1.5, $fn = 120); translate([MOT_X, 0]) circle(d = 16*2/PI + 1.5); }
@@ -363,5 +380,8 @@ else if (part == "foot") foot();
 else if (part == "down") assembly(-90);
 else if (part == "vis_belt") linear_extrude(6) belt2d();                     // только для картинок
 else if (part == "vis_motor") { translate([MOT_X - MOT/2, -MOT/2, 0]) cube([MOT, MOT, MOT_L]); translate([MOT_X, 0, -MOT_SHAFT]) cylinder(d = 5, h = MOT_SHAFT); translate([MOT_X, 0, -(Z_HS - Z_BASE - Z_P0) - 1]) cylinder(d = 13, h = P_T + 2); }
+else if (part == "gt2_plate_2d") gt2_plate_2d();       // -> DXF: openscad -D 'part="gt2_plate_2d"' -o gt2_188_plate.dxf station.scad
+else if (part == "gt2_flange_2d") gt2_flange_2d();
+else if (part == "pulley_metal") { gt2_pulley_metal(); }
 else if (part == "none") {}
 else assembly();
