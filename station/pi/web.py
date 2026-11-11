@@ -15,6 +15,8 @@ import station as S
 import scan2dxf
 import room3d
 import layout as LY
+import cadm
+import worktop as WT
 S_cfg_path = lambda: S.CFG_PATH
 
 
@@ -31,6 +33,7 @@ class App:
         self.busy = None; self.progress = 0.0; self.error = None; self.stop = False
         self.log = []; self.last = {}; self.zref = None; self.marks = {}; self.alert = None
         self.targets = []; self.lay = {}; self.sel = None; self.stk = None; self.chk = None; self.cmp = None; self.lres = None
+        self.wt = None
         projs = self.projects(); self.project = projs[0] if projs else None
         self.load_layout()
 
@@ -68,7 +71,10 @@ class App:
             self.st = S.Station(self.cfg, self.sim)
             with contextlib.suppress(Exception):                # перезапуск программы: ноль V — с наклоном из калибровки стоянки
                 cur = self.cur(self.proj())
-                if self.calibrated(cur): self.cfg["cal"].update(cur["cal"]); self.st.v_home(); print("  калибровка стоянки восстановлена")
+                if self.calibrated(cur):
+                    self.cfg["cal"].update(cur["cal"])
+                    if cur["cal"].get("hz_mark"): self.st.ard.home(); self.st.homed = True     # ноль Hz — снова по метке
+                    self.st.v_home(); print("  калибровка стоянки восстановлена")
         return self.st
 
     # ---------- задания (одно за раз, в фоне) ----------
@@ -134,6 +140,9 @@ class App:
 
     def job_calib(self, full=False, save_v0=True):
         st_ = self.station(); S = self.proj(); cur = self.cur(S); self.cfg["cal"].pop("imu_b", None); self.alert = None
+        if self.cfg.get("hz_mark", True):                    # масштаб шнура Hz по метке TCRT5000 + ноль Hz
+            try: st_.hz_scale()
+            except RuntimeError as e: print(f"  {e}")
         self.progress = 0.05; st_.v_home(); st_.move_deg(st_.pos_deg()[0], 0)
         self.progress = 0.1; st_.level(); st_.v_home(); self.progress = 0.4
         if full or self.sim or "v0" not in self.file_cal: st_.v_index()
@@ -193,7 +202,12 @@ class App:
             st_.ard.move(0, 0)
         finally:
             if "orig" in locals(): st_.point = orig
-        self.save(S); self.rebuild()
+        self.save(S); self.rebuild(); self._slip(st_)
+
+    def _slip(self, st_):
+        d = st_.hz_check()
+        if d is not None and abs(d) > self.cfg.get("slip_tol_deg", 0.02):
+            self.alert = f"проскальзывание шнура Hz {d:+.3f}° за скан — подтяните шнур, повторите «Калибровку» и скан"
 
     def job_mount(self, m):
         if m not in self.cfg["mounts"]: raise ValueError("установка: tripod | floor | table")
@@ -240,7 +254,7 @@ class App:
         S = self.proj(); name = name or f"S{len(S['setups']) + 1}"
         if any(s["name"] == name for s in S["setups"]): raise ValueError("имя занято")
         S["setups"].append(self._new_setup(name)); self.save(S)
-        for k in ("tilt_x", "tilt_y", "imu_b"): self.cfg["cal"].pop(k, None)
+        for k in ("tilt_x", "tilt_y", "imu_b", "hz_mark"): self.cfg["cal"].pop(k, None)
         self.stk = self.chk = None
         print(f"  новая стоянка {name}: перенесите станцию, «Калибровка», замерьте ≥2 (лучше 3) опорные точки, «Скан»")
 
@@ -331,7 +345,8 @@ class App:
 
     # ---------- вынос проекта (как Leica iCON) ----------
     def load_layout(self):
-        self.targets, self.lay, self.sel = [], {}, None
+        self.targets, self.lay, self.sel, self.wt = [], {}, None, None
+        with contextlib.suppress(Exception): self.wt = json.load(open(os.path.join(self.pdir(), "worktop.json")))
         with contextlib.suppress(Exception):
             self.lay = json.load(open(os.path.join(self.pdir(), "layout.json")))
             if self.lay.get("file"): self.set_layout(self.lay, save=False)
@@ -480,6 +495,92 @@ class App:
             print(f"  {w['wall']}: " + ("нет пары в проекте" if w["off_a"] is None else f"{w['off_a']:+.1f} / {w['off_b']:+.1f} мм, угол {w['ang']:+.2f}°, L {w['len']:.0f} (проект {w['len_p']:.0f})"))
         print("  compare.dxf: PROJECT — проект, FACT — факт, DEVIATION — отклонения")
 
+    # ---------- чертёж при замере (как Flexijet) ----------
+    def cad(self):
+        p = os.path.join(self.pdir(), "cad.json")
+        C = json.load(open(p)) if os.path.exists(p) else {}
+        for k, v in (("pts", []), ("els", []), ("tool", "wall"), ("multi", False), ("pending", []), ("next", 1)): C.setdefault(k, v)
+        return C
+
+    def cad_xyz(self, C):
+        from scan2dxf import to_xyz
+        S = self.proj(); cals = {s["name"]: s.get("cal", {}) for s in S["setups"]}; P = {}
+        for q in C["pts"]:
+            X = to_xyz(np.array([q["raw"]], float), q.get("cal") or cals.get(q["setup"], {}))[0]; T = self.setup_T(q["setup"])
+            P[q["id"]] = (T[0] @ X + T[1]) if T is not None else X
+        return P
+
+    def cad_save(self, C):
+        json.dump(C, open(os.path.join(self.pdir(), "cad.json"), "w"), ensure_ascii=False)
+        with contextlib.suppress(Exception):
+            P = self.cad_xyz(C); cadm.to_dxf(cadm.solve(P, C["els"]), P, os.path.join(self.pdir(), "cad.dxf"))
+
+    def _cad_close(self, C):
+        if not C["pending"]: return
+        need = cadm.TOOLS[C["tool"]][1]
+        if len(C["pending"]) < need: raise ValueError(f"{cadm.TOOLS[C['tool']][0]}: нужно точек ≥{need}, есть {len(C['pending'])}")
+        C["els"].append(dict(id=C["next"], type=C["tool"], pts=list(C["pending"]))); C["next"] += 1; C["pending"] = []
+
+    def job_cad_point(self):
+        st_ = self.station(); S = self.proj(); cur = self.cur(S); C = self.cad()
+        if cur["cal"]: self.cfg["cal"].update(cur["cal"])
+        h, v = st_.pos_deg(); D = float(np.median([st_.las.measure() for _ in range(3)]))
+        pid = 1 + max([q["id"] for q in C["pts"]], default=0)
+        C["pts"].append(dict(id=pid, raw=[h, v, D], setup=cur["name"], cal=dict(cur["cal"]))); C["pending"].append(pid)
+        if not C["multi"] and len(C["pending"]) >= cadm.TOOLS[C["tool"]][1]: self._cad_close(C)
+        self.cad_save(C); X = self.cad_xyz(C)[pid]
+        print(f"  {cadm.TOOLS[C['tool']][0].lower()}: точка {len(C['pending']) or 'готово'} — X{X[0]:.0f} Y{X[1]:.0f} Z{X[2]:.1f}")
+
+    def cad_cmd(self, b):
+        C = self.cad(); c = b["cmd"]
+        if c == "cad_tool":
+            if b["tool"] not in cadm.TOOLS: raise ValueError("инструмент?")
+            C["tool"], C["multi"], C["pending"] = b["tool"], bool(b.get("multi")), []
+        elif c == "cad_done": self._cad_close(C)
+        elif c == "cad_undo":
+            if C["pending"]: C["pending"].pop()
+            elif C["els"]: C["els"].pop()
+        elif c == "cad_del":
+            ids = set(map(int, b["ids"])); C["els"] = [e for e in C["els"] if e["id"] not in ids and not ids & set(e.get("refs", []))]
+        elif c == "cad_make":
+            ids = list(map(int, b["ids"]))
+            if b["op"] not in ("corner", "dist", "angle") or len(ids) < 2: raise ValueError("выберите 2 элемента (для угла комнаты — 2 стены, можно + плоскость пола/потолка)")
+            C["els"].append(dict(id=C["next"], type=b["op"], refs=ids[:3])); C["next"] += 1
+        elif c == "cad_clear": C = dict(pts=[], els=[], tool=C["tool"], multi=C["multi"], pending=[], next=1)
+        self.cad_save(C); return {"ok": 1}
+
+    def cad_state(self):
+        with contextlib.suppress(Exception):
+            C = self.cad(); P = self.cad_xyz(C); G = cadm.solve(P, C["els"])
+            return dict(tool=C["tool"], multi=C["multi"], pending=len(C["pending"]), need=cadm.TOOLS[C["tool"]][1],
+                        els=[dict(id=g["id"], type=g["type"], label=g["label"], ok=g["ok"]) for g in G], plan=cadm.plan(G),
+                        pend=[np.round(P[i], 1).tolist() for i in C["pending"] if i in P])
+        return None
+
+    # ---------- шаблон столешницы (как Flexijet Stone) ----------
+    def job_worktop(self, p):
+        st_, S, cur, T = self._ready(); R, t = T
+        h = float(p.get("h", 900)); D = float(p.get("depth", 600)); step = float(p.get("step", 0.5))
+        hz0, hz1 = float(p.get("hz0", 0)), float(p.get("hz1", 360)); z = h - t[2]
+        span = (hz1 - hz0) % 360 or 360; orig = self._wrap_point(st_, int(span/step)*1.6)
+        try: pts = st_.trace_level(z, hz0, hz1, step)
+        finally: st_.point = orig
+        st_.ard.move(0, 0)
+        if len(pts) < 10: raise RuntimeError("мало точек на трассе — проверьте сектор «Начало/Конец» и высоту")
+        Pp = np.array(pts); X = room3d.to_xyz(Pp, self.cfg["cal"])
+        W = WT.template(X[:, :2], Pp[:, 0], np.zeros(2), D, p.get("mode", "touch"), WT.parse_cutouts(p.get("cut", "")),
+                        float(p.get("e0", 0)), float(p.get("e1", 0)))
+        pr = lambda Q: (np.c_[np.asarray(Q, float), np.zeros(len(Q))] @ R.T + t)[:, :2]
+        nm = p.get("name") or f"столешница H{h:.0f}"
+        WT.to_dxf(W, os.path.join(self.pdir(), "worktop.dxf"), f"{nm}: глубина {D:.0f}, задняя кромка {'по выступу стены' if W['rep']['mode'] == 'touch' else 'по средней линии'}")
+        rp = W["rep"]; loc = WT.to_local(W)
+        self.wt = dict(name=nm, poly=np.round(pr(W["poly"]), 1).tolist(), cut=[np.round(pr(c["poly"]), 1).tolist() for c in W["cut"]],
+                       local=np.round(loc(W["poly"]), 1).tolist(), **{k: rp[k] for k in ("back", "front", "angles", "walls", "area_m2", "depth", "mode")})
+        json.dump(self.wt, open(os.path.join(self.pdir(), "worktop.json"), "w"), ensure_ascii=False)
+        print(f"  {nm}: задняя кромка " + " + ".join(f"{x:.0f}" for x in rp["back"]) + ", фасад " + " + ".join(f"{x:.0f}" for x in rp["front"]) + f", {rp['area_m2']:.2f} м²")
+        for i, w_ in enumerate(rp["walls"]): print(f"    стена {i + 1}: выступ {w_['pro']:.1f} мм, зазор за столешницей до {w_['gap']:.1f} мм")
+        print("  worktop.dxf: CONTOUR, CUTOUTS, WALL_ACTUAL (стена по факту), DIM")
+
     # ---------- данные для экрана ----------
     def state(self):
         pos = None
@@ -499,7 +600,8 @@ class App:
         return {"busy": self.busy, "progress": self.progress, "error": self.error, "log": self.log[-60:],
                 "project": self.project, "projects": self.projects(), "pos": pos, "last": self.last,
                 "sim": self.sim, "setups": setups, "zref": self.zref, "marks": self.marks, "mount": self.cfg["mount"],
-                "quick": quick, "batt": batt, "alert": self.alert, "lay": self.lay_state()}
+                "quick": quick, "batt": batt, "alert": self.alert, "lay": self.lay_state(),
+                "cad": self.cad_state() if self.project else None, "wt": self.wt}
 
     def lay_state(self):
         r = None
@@ -590,6 +692,9 @@ class H(BaseHTTPRequestHandler):
             if c == "layout": return self.send(200, {"n": A.set_layout(b)})
             if c == "sel": A.sel = int(b["id"]); return self.send(200, {"ok": 1})
             if c == "alert_ok": A.alert = None; return self.send(200, {"ok": 1})
+            if c in ("cad_tool", "cad_done", "cad_undo", "cad_del", "cad_make", "cad_clear"):
+                if A.busy: raise RuntimeError("занято")
+                return self.send(200, A.cad_cmd(b))
             if c == "mark":                                  # метки сектора для трассы по уровню
                 A.marks[b["which"]] = A.st.pos_deg()[0] if A.st else 0.0; return self.send(200, A.marks)
             f = lambda k, dflt: float(b.get(k, dflt))
@@ -604,6 +709,7 @@ class H(BaseHTTPRequestHandler):
                     "qpoint": (A.job_qpoint, "p"), "floorpt": (A.job_qpoint, "f"), "qclear": (A.job_qclear,), "plumb": (A.job_plumb,),
                     "stake": (A.job_stake, b.get("id", A.sel)), "tie": (A.job_tie, b.get("id"), b.get("xyz")),
                     "resect": (A.job_resect,), "untie": (A.job_untie,), "check": (A.job_check,), "line": (A.job_line, b),
+                    "cadpt": (A.job_cad_point,), "worktop": (A.job_worktop, b),
                     "compare": (A.job_compare, b.get("file", A.lay.get("file", "")), b.get("layers") or [])}
             if c not in jobs: raise ValueError(f"команда? {c}")
             A.run(c, *jobs[c]); self.send(200, {"ok": 1})

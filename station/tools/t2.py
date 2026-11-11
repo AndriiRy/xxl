@@ -5,7 +5,7 @@ A = web.App(sys.argv[2], True); A.project = A.projects()[0]
 st = A.station(); room = st.ard.room
 REFS = {"1": (1000, sim_room.bump(1000, 1600), 1600), "2": (4200, 2600, 1500), "3": (1000, 3400, 2000)}
 def aim(P):
-    h, v = room.aim_world(P); st.ard.move(*st.deg2steps(h, v - st.ard.v_off))
+    h, v = room.aim_world(P); st.ard.move(*st.deg2steps(h - st.ard.h_off, v - st.ard.v_off))
 for k, P in REFS.items(): aim(P); A.job_ref(k)
 t = time.time(); A.job_level(900, 0, 360, 0.5); print("level s", round(time.time() - t, 1))
 A.job_surface("A-B", "wall", 100, 2400, 600, 100); A.job_surface("A-B", "floor", 0, 0, 600, 100)

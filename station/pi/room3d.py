@@ -118,7 +118,14 @@ def chain_elements(Q, H):
         while e["i1"] + 1 < n and dist(Q[e["i1"] + 1]) < TOL: e["i1"] += 1
         while e["i0"] > 0 and dist(Q[e["i0"] - 1]) < TOL: e["i0"] -= 1
         e["p0"], e["p1"], e["hz0"], e["hz1"] = pr(Q[e["i0"]]), pr(Q[e["i1"]]), H[e["i0"]], H[e["i1"]]
-    return els
+    keep = []                                                 # короткая прямая у дуги, лежащая на этой дуге, — часть дуги
+    for k, e in enumerate(els):
+        if e["type"] == "L" and np.linalg.norm(e["p1"] - e["p0"]) < 200:
+            S = Q[e["i0"]:e["i1"] + 1]
+            if any(np.mean(np.abs(np.linalg.norm(S - a["c"], axis=1) - a["r"]) < TOL) > 0.7
+                   for a in (els[j] for j in (k - 1, k + 1) if 0 <= j < len(els) and els[j]["type"] == "A")): continue
+        keep.append(e)
+    return keep
 
 
 def circle_line(c, r, p, d):
@@ -189,7 +196,8 @@ def analyze_profile(XY, HZ, closed=True):
     r = np.maximum(np.linalg.norm(XY, axis=1), np.linalg.norm(nxt, axis=1))
     gap = (g > 5*dth*r + 25) & (g > 40)
     if not closed: gap[-1] = True
-    gi = np.where(gap)[0]; start = (gi[0] + 1) % n if len(gi) else 0
+    gi = np.where(gap)[0]
+    start = (gi[0] + 1) % n if len(gi) else int(np.argmax(np.linalg.norm(XY, axis=1)))   # стык круга — в углу (дальняя точка = вершина)
     order = [(start + k) % n for k in range(n)]
     chains, cur = [], []
     for idx in order:

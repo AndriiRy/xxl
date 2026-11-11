@@ -94,7 +94,8 @@ class Arduino:
     def jog(self, ax, n): self.pos = self.cmd(f"J {ax} {int(n)}"); return self.pos
     def zero(self): self.pos = self.cmd("Z")
     def setpos(self, h, v): self.pos = self.cmd(f"S {int(round(h))} {int(round(v))}"); return self.pos
-    def home(self): return self.cmd("H")
+    def home(self):
+        n = self.cmd("H"); self.pos = self.cmd("P"); return n          # прошивка обнуляет счётчик Hz на метке
 
 
 class Laser:
@@ -144,18 +145,28 @@ class Laser:
 
 # ---------------- симулятор ----------------
 class Sim:
-    """Виртуальная кухня sim_room.py: ниша, пилястра, полукруглый выступ, неровная стена, наклонённый штатив."""
+    """Виртуальная кухня sim_room.py: ниша, пилястра, полукруглый выступ, неровная стена, наклонённый штатив.
+    cfg["sim_scale_err"] = [eh, ev] — истинные шаги/оборот отличаются от config (износ/вытяжка шнура)."""
+    MARK = 37.3                                                # метка нуля Hz (белая полоска на барабане), истинный угол
     def __init__(self, cfg):
         import sim_room
         self.cfg, self.room, self.pos = cfg, sim_room.Room(), (0, 0)
+        self.err = list(cfg.get("sim_scale_err", [0.0, 0.0])); self.spr0 = (cfg["steps_per_rev_hz"], cfg["steps_per_rev_v"])
         self.v_off = 7.3                                       # голова при включении наклонена на неизвестный угол
+        self.h_off = 0.0                                       # истинный Hz при счётчике 0
+    def _sh(self): return self.spr0[0]*(1 + self.err[0])
+    def _sv(self): return self.spr0[1]*(1 + self.err[1])
     def move(self, h, v): self.pos = (int(round(h)), int(round(v))); return self.pos
     def jog(self, ax, n): return self.move(self.pos[0] + (n if ax == "H" else 0), self.pos[1] + (n if ax == "V" else 0))
-    def zero(self): self.v_off += self.deg()[1]; self.pos = (0, 0)
-    def home(self): return 0
+    def zero(self): h, v = self.deg(); self.h_off = h; self.v_off += v; self.pos = (0, 0)
+    def home(self):
+        h = self.deg()[0]; d = (self.MARK - h) % 360
+        if d < 0.01: d += 360                                  # стоим на метке — прошивка сначала сходит с неё
+        n = int(round(d/360*self._sh())); self.h_off = h + n/self._sh()*360; self.pos = (0, self.pos[1]); return n
     def setpos(self, h, v):
-        v_true = self.deg()[1] + self.v_off; self.pos = (int(round(h)), int(round(v))); self.v_off = v_true - self.deg()[1]; return self.pos
-    def deg(self): return self.pos[0] / self.cfg["steps_per_rev_hz"] * 360, self.pos[1] / self.cfg["steps_per_rev_v"] * 360
+        ht, vt = self.deg()[0], self.deg()[1] + self.v_off; self.pos = (int(round(h)), int(round(v)))
+        self.h_off = ht - self.pos[0]/self._sh()*360; self.v_off = vt - self.deg()[1]; return self.pos
+    def deg(self): return self.pos[0]/self._sh()*360 + self.h_off, self.pos[1]/self._sv()*360
     def raw(self): return f"D={self.measure()/1000:.4f}m\r\n".encode()
     def measure(self): h, v = self.deg(); return self.room.measure(h, v + self.v_off)
     def imu(self): h, v = self.deg(); return self.room.imu(h, v + self.v_off)
@@ -263,6 +274,25 @@ class Station:
         if not hasattr(self, "_imu"):
             c = self.cfg["imu"]; self._imu = IMU(c["bus"], c["addr"], c["sign"])
         time.sleep(self.cfg["imu"]["settle_s"]); return self._imu.read()
+
+    # ---------- шнур: масштаб и проскальзывание по метке нуля Hz ----------
+    def hz_scale(self, turns=2):
+        """Шаги на оборот Hz по метке TCRT5000: поиск нуля подряд = ровно один оборот барабана.
+        Шнур вытянулся/истёрся -> передаточное число чуть другое -> находим заново при каждой калибровке."""
+        spr = self.cfg["steps_per_rev_hz"]; self.ard.home(); N = [self.ard.home() for _ in range(turns)]
+        n = float(np.mean(N))
+        if abs(n/spr - 1) > 0.03:
+            raise RuntimeError(f"метка нуля Hz: {n:.0f} шагов на оборот вместо ≈{spr} — проверьте TCRT5000 и белую метку")
+        print(f"  масштаб Hz по метке: {n:.0f} шагов/оборот (было {spr}, {(n/spr - 1)*1e6:+.0f} ppm, разброс {max(N) - min(N)} шагов)")
+        self.cfg["steps_per_rev_hz"] = int(round(n)); self.homed = True; self.cfg["cal"]["hz_mark"] = True; return n
+
+    def hz_check(self):
+        """После работы: доехать до метки и сравнить счётчик — проскальзывание шнура, пропуск шагов (град)."""
+        if not getattr(self, "homed", False): return None
+        spr = self.cfg["steps_per_rev_hz"]; h0, v0 = self.ard.pos; found = self.ard.home()
+        tot = h0 + found; k = round(tot/spr); slip = tot - k*spr
+        self.ard.setpos(k*spr, self.ard.pos[1])                    # счётчик — как будто метку прошли без сброса
+        d = slip/spr*360; print(f"  контроль нуля Hz: расхождение {slip:+d} шагов ({d:+.4f}°)"); return d
 
     # ---------- компенсатор: контроль наклона ----------
     def _imu_pred(self):
